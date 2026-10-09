@@ -76,7 +76,119 @@ account (C-032), and connectors reach each company's ERP.
 - **TLS is terminated inside the Hub** with the Preview certificate (`apps/hub/src/hub.ts:189-208`).
   Behind Cloudflare the edge terminates TLS, and those listeners become plain HTTP on loopback.
 
-<!-- SECTION 4 -->
+## 3. Why it is so
+
+- The pilot was built for **one company on one machine** (C-024 before its amendment): systemd
+  units, secret files in a home directory, backups to the same disk ([hosting §3](../hosting/study.md#3-why-it-is-so)).
+- The **instance lock** (E7) protects in-process jobs and the Builder's live sessions from a second
+  Hub on the same database. It was the cheap answer while one laptop ran one Hub.
+- The **jobs in the Hub process** (E6) followed the same reasoning: no queue, no second process.
+  Windmill keeps background work in a PostgreSQL queue with `SKIP LOCKED` instead, and ToolJet and
+  Retool run one image with a mode per role ([hosting §4](../hosting/study.md#comparison)).
+- Nothing was ever deployed to a cloud, so no image or deploy workflow exists (E8).
+
+## 4. References
+
+A deployment study's references are the vendors' own pages and price data, not code. Each figure
+below was read on 2026-10-09 from the vendor's site, its documentation source on GitHub, or its
+price API. Figures marked † come from a search engine's extract of the vendor page and should be
+rechecked before money is committed.
+
+### Sources and versions
+
+| Reference | What was read |
+| --- | --- |
+| Neon | [plans](https://neon.com/docs/introduction/plans) (docs source updated 2026-10-06), [regions](https://neon.com/docs/introduction/regions), [roles](https://neon.com/docs/manage/roles), [databases](https://neon.com/docs/manage/databases), [pooling](https://neon.com/docs/connect/connection-pooling), [multitenancy](https://neon.com/docs/guides/multitenancy) |
+| Supabase | [pricing](https://supabase.com/pricing), [compute](https://supabase.com/docs/guides/platform/compute-and-disk), [backups](https://supabase.com/docs/guides/platform/backups), the role migration [`demote-postgres.sql`](https://github.com/supabase/postgres/blob/develop/migrations/db/migrations/10000000000000_demote-postgres.sql) |
+| Google Cloud | [Compute Engine prices](https://cloud.google.com/products/compute/pricing/general-purpose), [Cloud SQL prices](https://cloud.google.com/sql/pricing), [Cloud Run prices](https://cloud.google.com/run/pricing), [startup credits](https://cloud.google.com/startup/benefits) |
+| AWS | the Price List API for EC2, RDS and Lightsail in `sa-east-1` (published 2026-09-15 to 2026-10-08); [Activate](https://aws.amazon.com/startups/credits/)† |
+| Fly.io | the [docs source](https://github.com/superfly/docs): regions, prices, [Managed Postgres](https://fly.io/docs/mpg/) |
+| Hetzner, Oracle, Akamai, Magalu Cloud | [Hetzner locations](https://docs.hetzner.com/cloud/general/locations/)† and [price adjustment](https://docs.hetzner.com/general/infrastructure-and-availability/price-adjustment/)†; [Oracle Always Free](https://docs.oracle.com/en-us/iaas/Content/FreeTier/freetier_topic-Always_Free_Resources.htm)†; [Akamai São Paulo](https://www.akamai.com/cloud/pricing/sao-paulo)†; [Magalu Cloud](https://magalu.cloud/precos/virtual-machines/)† |
+| Cloudflare | the [docs source](https://github.com/cloudflare/cloudflare-docs): Workers for Platforms pricing and limits, Workers pricing, R2, Tunnel, Hyperdrive limits, Cloudflare for SaaS plans |
+| E2B, mail, observability | [E2B pricing](https://e2b.dev/pricing)† and SDK source (`packages/js-sdk/src/sandbox/index.ts:580`); [Better Auth email](https://www.better-auth.com/docs/concepts/email); [Resend](https://resend.com/pricing)†; [Grafana Cloud](https://grafana.com/pricing/)†; [Sentry](https://sentry.io/pricing/)† |
+| PostgreSQL | [row security](https://www.postgresql.org/docs/17/ddl-rowsecurity.html): "Superusers and roles with the BYPASSRLS attribute always bypass the row security system" |
+
+### The questions
+
+1. Is there a São Paulo region?
+2. What does our size cost: four companies, under 5 GB of data, low traffic?
+3. Can Conexus's admin role create databases and roles with SQL, at runtime (P2)?
+4. What restore does it give, and how far back?
+5. Does it sleep when idle, and what keeps it awake?
+6. What makes the bill jump?
+
+### Databases
+
+| | Neon Launch | Supabase Pro | Cloud SQL (Enterprise) | RDS | Fly Managed Postgres | Self-hosted on the VM |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 São Paulo | yes, `aws-sa-east-1` | yes, `sa-east-1` | yes | yes | yes, `gru` | where the VM is |
+| 2 Price | "$0.106/CU-hour", "$0.35/GB-month", "no minimum monthly fee"; 0.25 CU (about 1 GB of memory) is the smallest | "From $25/month", one Micro project included; each more project adds its compute (about $10) | db-g1-small "$38.325 / 1 month", shared core "not covered by the Cloud SQL SLA"; 1 vCPU with 3.75 GB about $74 | db.t4g.micro "$0.034" an hour, about $25, plus gp3 "$0.219 per GB-month" | Basic "$38.00" (shared, 1 GB), HA included | none beyond a bigger VM |
+| 3 Runtime `CREATE DATABASE` and `CREATE ROLE` | yes; `neon_superuser` has "CREATEDB… CREATEROLE… BYPASSRLS"; 500 databases and 500 roles per branch | yes; `postgres` is `NOSUPERUSER CREATEDB CREATEROLE … BYPASSRLS` | yes, `cloudsqlsuperuser` "CREATEROLE, CREATEDB"† | yes, master user `CREATEDB CREATEROLE`† | **no**: databases only from the dashboard, three fixed roles | yes |
+| 4 Restore | point in time "Up to 7 days, billed at $0.20/GB-month" of change history | "Daily backups stored for 7 days"; point in time "$100 per month per 7 days retention" and needs Small compute | automated backups, point in time up to 7 days† | automated backups | "backups" included; window not verified | ours: pgBackRest 2.59.3 or WAL-G 3.0.8 to an S3-compatible store |
+| 5 Sleeps | after "5 min inactivity"; the Hub keeps it awake (E6, E7) | no; free projects "are paused after 1 week of inactivity" | no | no | no | no |
+| 6 Bill jumps | compute hours if the Hub never idles; no SLA below Scale ($0.222/CU-hour) | point in time ($100), compute and IPv4 add-ons are "not covered by the Spend Cap"; restored custom roles lose their passwords | HA doubles it; PostgreSQL 16+ defaults to Enterprise Plus† | Multi-AZ doubles it | Starter "$72.00" | operator hours; a restore nobody tested |
+
+Neon also recommends "one project per user" when each customer needs its own restore
+([multitenancy](https://neon.com/docs/guides/multitenancy)). Conexus gets the same from one
+project: restore a branch at the wanted time, then move that one company's database back with the
+P3 procedure.
+
+### Compute in or near São Paulo
+
+| | Region in Brazil | About 2 vCPU, 4 GB | About 2–4 vCPU, 8 GB | Notes |
+| --- | --- | --- | --- | --- |
+| AWS Lightsail | yes | "$0.03225 per hour of 4GB bundle Instance including public IPv4 address", about $24 with 80 GB and 4 TB of transfer | 8 GB, 2 vCPU: "$0.05913 per hour", about $44 | same AWS region as Neon's São Paulo; burstable CPU |
+| Google Compute Engine | yes | e2-medium "$38.825196 / 1 month", plus disk ($0.15/GiB) and IPv4 (about $3.65) | e2-standard-2 "$77.650392 / 1 month" | Start credits "Up to $2,000 … valid for one year", for a startup "planning to seek venture funding soon" |
+| AWS EC2 | yes | t4g.medium "$0.0536" an hour, about $39 | t4g.large about $78 | egress $0.15/GB |
+| Magalu Cloud | yes | BV2-4-40 "R$ 102,99 por mês"† (about $21) | about R$220† | prices in reais; the page shows two conflicting tables |
+| Akamai | yes | "Linode 4 GB" $33.60† | $67.20† | |
+| Fly.io | yes, `gru` | shared-cpu-2x 4 GB about $41 (São Paulo costs 1.6 times Ashburn) | about $82 | "New organizations don't have a free tier" |
+| Oracle Always Free | São Paulo, short of capacity | $0, now "2 OCPUs and 12 GB of memory"† | — | the free limit was halved in 2026†; idle instances are reclaimed† |
+| Hetzner | **no** (EU, US, Singapore) | CX23 €5.49† (EU) | CX33 €8.49† (EU) | about 128 ms round trip São Paulo to Ashburn†; prices raised twice in 2026†; US prices not verified |
+| Cloud Run | yes (Tier 2) | always on, 1 vCPU and 1 GiB, about $63 | — | affinity "best effort, not a guarantee"; requests up to 60 minutes |
+| Railway, Render | **no** South America region† | | | |
+| A server at home | yes | an N100 mini PC with 16 GB, R$1,731–2,799†, 7–12 W | | Enel SP residential about R$0.79/kWh before taxes†; no SLA; Cloudflare Tunnel needs no public IP |
+
+### Platform services
+
+| Service | What it costs at our size | Source |
+| --- | --- | --- |
+| Workers for Platforms | "$25 monthly": 20 million requests, 60 million CPU ms, 1,000 scripts; "Max of 30 seconds of CPU time per invocation"; whether the $5 Workers Paid plan is also needed is not verified | Cloudflare docs source |
+| Custom host names (Cloudflare for SaaS) | 100 included, then $0.10 each | Cloudflare docs source |
+| Tunnel | all plans; 1,000 tunnels per account | Cloudflare docs source |
+| R2 | 10 GB-month free, then $0.015/GB-month; egress free | Cloudflare docs source |
+| E2B | Hobby: one-time $100 credit, sessions up to 1 hour, 20 at once; Pro "$150/month", 24 hours. A 2 vCPU, 2 GiB sandbox: about $0.133 an hour; a paused one costs nothing | E2B pricing† and SDK source |
+| Mail | Better Auth "works with any transactional email provider". Resend: 3,000 a month free, 100 a day, sends from `sa-east-1`; Pro $20 | Better Auth docs; Resend† |
+| Errors, logs, uptime | Grafana Cloud free: 10k series, 50 GB logs, 14 days†; Sentry free: one user, 5k errors† | |
+| Build and images | GitHub Actions and GHCR are free for a public repository | GitHub docs source |
+| Domain | `.com.br` R$40 a year at Registro.br; Cloudflare DNS by delegation† | |
+
+### Comparison
+
+**Where they agree:**
+- Every managed PostgreSQL that fits hands over the same thing: an admin role with `CREATEDB` and
+  `CREATEROLE`, without superuser. P0 to P3 run on exactly that.
+- Every provider with a São Paulo region charges a premium for it: Google about 59% over Iowa,
+  Akamai about 40%, Fly 1.6 times.
+- **Lightsail is the exception:** about $24 for 4 GB in São Paulo, with transfer and an IPv4
+  address included.
+
+**Where they differ:**
+- **The point-in-time restore.** Neon includes it for a few cents per GB. Supabase charges $100 a
+  month for it, so the Pro plan alone restores only from a daily backup.
+- **Fly Managed Postgres cannot create a database with SQL,** so it cannot run P2.
+- **Only Neon sleeps** when idle.
+- **Only Hetzner and Railway/Render have no Brazil region.**
+
+### What we copy and what we adapt
+
+| Mechanism | From | Kept as is | Adapted, and why |
+| --- | --- | --- | --- |
+| An admin role with `CREATEDB CREATEROLE`, a runtime role that owns nothing | managed PostgreSQL (all of them) | yes | `createrole_self_grant = 'set, inherit'` on the admin, so it owns what it creates (P2) |
+| A backup role reading through a policy, not `BYPASSRLS` | PostgreSQL row security | | the provider's own backups cover disasters; this role is only for a logical export (P1) |
+| Point in time by branch, then one company moved back | Neon branches; P3 | | restores one company without rolling back the others |
+| Outbound-only tunnel, no open port | Cloudflare Tunnel | yes | the data service is reached only by the dispatch Worker, through an Access service token |
+| One image, one mode per role | Windmill, ToolJet, Retool ([hosting §4](../hosting/study.md#comparison)) | yes | modes `hub`, `builder`, `data`, `migrate` |
 
 ## 5. The premise
 
