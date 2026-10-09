@@ -170,3 +170,36 @@ test('an outsider is refused at admission before any project write is reachable'
   const { admitWorkspace } = await import(hubModuleUrl('identity-access/admission.js'))
   await assert.rejects(database.transaction(ID.outsider, (gate) => admitWorkspace(gate, { workspaceId: ID.workspace, action: 'workspace.read' })), { id: 'WORKSPACE_NOT_FOUND' })
 })
+
+test('project cards retain PostgreSQL timestamp precision and deterministic run and Project ties', async (t) => {
+  const { connection, store, seedProject } = await setupProjects(t, 'conexus_card_order')
+  const first = await seedProject('First', ID.workspace, '30000000-0000-4000-8000-000000000001')
+  const second = await seedProject('Second', ID.workspace, '30000000-0000-4000-8000-000000000002')
+  const third = await seedProject('Third', ID.workspace, '30000000-0000-4000-8000-000000000003')
+  const cards = () => store.listProjectSummariesWithActivity({ accountId: ID.owner, workspaceId: ID.workspace })
+  await query(connection, "UPDATE project.project SET created_at = '2026-01-01T00:00:00.000001Z'")
+  await query(connection, "UPDATE project.project SET created_at = '2026-01-01T00:00:00.000999Z' WHERE project_id = $1", [third])
+  await query(connection, 'DELETE FROM builder.project_working_state WHERE project_id = $1', [second])
+  assert.deepEqual(await cards(), [third, first, second].map((projectId) => ({
+    projectId, name: projectId === first ? 'First' : projectId === second ? 'Second' : 'Third',
+    state: 'live', archived: false, lastActivityAt: '2026-01-01T00:00:00.000Z', latestRun: null, hasPreview: false,
+  })))
+  await query(connection, `INSERT INTO builder.builder_run
+    (builder_run_id, project_id, account_id, conversation_id, idempotency_digest, request_digest, base_source_revision, state, result_kind, result_source_revision, created_at)
+    VALUES
+    ('40000000-0000-4000-8000-000000000001', $1, $2, $1, repeat('1', 64), repeat('2', 64), $3, 'SUCCEEDED', 'RESPONSE_ONLY', NULL, '2026-01-02T00:00:00.123456Z'),
+    ('40000000-0000-4000-8000-000000000002', $1, $2, $1, repeat('3', 64), repeat('4', 64), $3, 'SUCCEEDED', 'SOURCE_CHANGED', $3, '2026-01-02T00:00:00.123456Z')`, [first, ID.owner, STARTER])
+  const ordered = await cards()
+  assert.deepEqual(ordered.map(({ projectId }) => projectId), [first, third, second])
+  assert.deepEqual(ordered[0], {
+    projectId: first, name: 'First', state: 'live', archived: false,
+    lastActivityAt: '2026-01-02T00:00:00.123Z', latestRun: { state: 'SUCCEEDED', resultKind: 'SOURCE_CHANGED' }, hasPreview: false,
+  })
+  await query(connection, "INSERT INTO project.project_deletion(project_id, workspace_id, name, requested_by) VALUES ($1, $2, 'First', $3)", [first, ID.workspace, ID.owner])
+  assert.deepEqual((await cards())[0], { projectId: first, name: 'First', state: 'deleting' })
+})
+
+test('an admitted Workspace with no Projects has no activity cards', async (t) => {
+  const { store } = await setupProjects(t, 'conexus_card_empty')
+  assert.deepEqual(await store.listProjectSummariesWithActivity({ accountId: ID.owner, workspaceId: ID.workspace }), [])
+})

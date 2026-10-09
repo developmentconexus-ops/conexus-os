@@ -1,7 +1,7 @@
 # 0022. Explicit module ownership
 
 **Date**: 2026-10-09
-**Status**: Proposed. Technical acceptance is pending from the planning session.
+**Status**: Technically approved by Firstmate under delegated user authority on 2026-10-09, proposal commit `75d7accffc2bf4197eb4523d44f0346c237cd169`. This records technical acceptance, not a new direct operator utterance or merge permission.
 **Lane**: lane:qualification, Q-b module boundaries
 **Execution branch**: `feat/conexus-module-boundaries`
 **Integration base**: `wave/company-model-accounts-spec`
