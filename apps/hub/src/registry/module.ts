@@ -1,6 +1,6 @@
 import type { AccountId, ApplicationFilePath, ArtifactRevisionId, ProjectId, SourceRevision } from '@conexus/contract'
-import type { Admitted, ApplicationScope, Checked, ProjectScope } from '../identity-access/admission.js'
-import { admitProject } from '../identity-access/admission.js'
+import type { Admitted, ApplicationScope, Checked, ProjectScope } from '../identity-access/public.js'
+import { admitProject } from '../identity-access/public.js'
 import type { Database } from '../platform/db.js'
 import { purge, retain } from './retain.js'
 import { seal } from './seal.js'

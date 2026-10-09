@@ -228,8 +228,10 @@ on screen.
 ### Layers
 
 `platform` and `http` import no application module, and the composition root imports only what
-`scripts/check-import-law.mjs` allows. A module reaches another only through its public module
-constructor, never by a deep import. The imports that still break this are departures in section 11.
+`scripts/check-import-law.mjs` allows. An owner consumes another owner's declared public interface, while composition wires module
+instances; private files and undeclared dependencies are forbidden, including type-only imports.
+The import law declares the known owners, public entries and dependencies. HTTP consumes only the
+IAM session types and technical token hashing, never IAM admission or database operations.
 
 ## 6. Runtime view
 
@@ -371,7 +373,7 @@ The four goals of section 1.2 are the quality requirements. Each has scenarios b
 | Recovery | The Hub restarts during a run | A run with no recorded candidate ends `INTERRUPTED`, a run with one is settled by whether it was admitted, and no admitted source is lost |
 | Recovery | `main` moved while a run worked | The run's result is not applied, and nothing is overwritten |
 | Recovery | The Applications cluster fills up | The Hub keeps serving its own screens and APIs |
-| Evolution | A module deep-imports another, or `platform` imports a module | `scripts/check-import-law.mjs` fails the build; the exemptions it still allows are departures in section 11 |
+| Evolution | A module deep-imports another, or `platform` imports a module | `scripts/check-import-law.mjs` fails the build for undeclared owners, dependencies and private imports |
 
 ## 11. Risks and technical debt
 
@@ -380,7 +382,6 @@ pull request that fixes one deletes its line.
 
 | Departure or risk | Wave |
 | --- | --- |
-| `http/access.ts` and `builder/run-operation.ts` import the session and admission contracts of `identity-access` and `app-runner` directly, and the import checker exempts the session, admission and application-server contracts | Hub base, after S1 |
 | The sandbox keepalive in `builder/sandbox.ts` and the sign-in expiry in `model-account/google-ai-pro/login.ts` run their own timers, outside `platform/jobs.ts` | Hub base, after S1 |
 | The model routes keep verb segments (`/oauth/start`, `/login/complete`), the Google sign-in status is a `POST` named for a read, and the three `start` `POST`s take no `Idempotency-Key` | Hub base, after S1 |
 | `createWorkspaceConnection` and `bindProjectConnection` take no `Idempotency-Key` and deduplicate by domain identity (`connectionId`, the binding name) | Hub base, after S1 |
@@ -391,7 +392,6 @@ pull request that fixes one deletes its line.
 | `startHub`, `createHttpApp` and the Builder module stay past the function size limit by suppression | Hub base, after S1 |
 | `Scope` in `apps/hub/src/connectors/scope.ts` is a class with mutable state | Code base sweeps, #548 |
 | Named top-level functions are `const` arrows, some class fields use `#private` outside secret values, and some types are `interface` without augmenting a library | Code base sweeps |
-| The sealed build is a nominal type the Builder can still subclass; the registry refuses an unsealed one at run time | Hub base, after S1 |
 | Two connections run as `hub_runtime` outside any transaction, with no role switch ([database](database.md#6-roles-and-transactions)): the instance lock session and the application presence session, each holding a session level advisory lock (`session` in `platform/db.ts`) | Hub base, after S1 |
 | Hub reads and commands share `hub_runtime` and no table has row-level policies. A missed admission or query filter can expose another person's rows; closed gates, scoped proofs, native verb/column grants and representative tests are the backstops ([database](database.md#6-roles-and-transactions)). Accepted by operator decision C-042 | Accepted risk |
 | `GET .../workspaces/{workspaceId}/projects` returns a top-level array, and lists that grow have no continuation token | Code base sweeps, #547 |

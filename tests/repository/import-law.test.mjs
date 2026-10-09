@@ -105,8 +105,8 @@ function layerViolations(files) {
 
 test('the access edges: HTTP reads the session contract, the token and the lifetimes; routes read access and cookies', () => {
   assert.deepEqual(layerViolations({
-    'apps/hub/src/http/access.ts': 'import "../identity-access/current-session.js"; import "../platform/opaque-token.js"; import "../platform/lifetimes.js"',
-    'apps/hub/src/identity-access/current-session.ts': '',
+    'apps/hub/src/http/access.ts': 'import type { HubSession } from "../identity-access/public.js"; import "../platform/opaque-token.js"; import "../platform/lifetimes.js"',
+    'apps/hub/src/identity-access/public.ts': '',
     'apps/hub/src/platform/opaque-token.ts': '',
     'apps/hub/src/platform/lifetimes.ts': '',
     'apps/hub/src/workspace/routes.ts': 'import "../http/access.js"; import "../http/cookies.js"',
@@ -178,5 +178,50 @@ test('the new owner registration refuses deep imports, unregistered consumers an
   assertRule('IMPORT_CYCLE', {
     'apps/hub/src/builder/module.ts': 'import "../model-account/module.js"',
     'apps/hub/src/model-account/module.ts': 'import "../builder/module.js"',
+  })
+})
+
+test('declared owners expose only public interfaces to declared consumers, including types', () => {
+  const root = fixture({
+    'apps/hub/src/builder/application.ts': 'import type { SealedApplication } from "../registry/public.js"',
+    'apps/hub/src/registry/public.ts': 'export type { SealedApplication } from "./seal.js"',
+    'apps/hub/src/registry/seal.ts': 'export type SealedApplication = string',
+  })
+  try { assert.deepEqual(checkImportLaw(root), []) } finally { rmSync(root, { recursive: true, force: true }) }
+  assertRule('IMPORT_OWNER_TO_OWNER', {
+    'apps/hub/src/builder/application.ts': 'import type { SealedApplication } from "../registry/seal.js"',
+    'apps/hub/src/registry/seal.ts': '',
+  })
+  assertRule('IMPORT_OWNER_TO_OWNER', {
+    'apps/hub/src/connectors/module.ts': 'import type { SealedApplication } from "../registry/public.js"',
+    'apps/hub/src/registry/public.ts': '',
+  })
+  assertRule('IMPORT_CENSUS', { 'apps/hub/src/unregistered/module.ts': '' })
+})
+
+test('HTTP consumes only public session types and technical token hashing', () => {
+  const entry = 'apps/hub/src/identity-access/public.ts'
+  const cases = [
+    ['import { admitProject } from "../identity-access/public.js"', false],
+    ['import type { Admitted } from "../identity-access/public.js"', false],
+    ['import iam, { type HubSession } from "../identity-access/public.js"', false],
+    ['import * as iam from "../identity-access/public.js"', false],
+    ['export * from "../identity-access/public.js"', false],
+    ['import "../identity-access/public.js"', false],
+    ['const iam = require("../identity-access/public.js")', false],
+    ['import type { CurrentSession, HubSessionDigest } from "../identity-access/public.js"', true],
+    ['import { type HubSession } from "../identity-access/public.js"', true],
+  ]
+  for (const [source, allowed] of cases) {
+    const found = layerViolations({ 'apps/hub/src/http/access.ts': source, [entry]: '' })
+    assert.deepEqual(found, allowed ? [] : ['apps/hub/src/http/access.ts -> ../identity-access/public.js'], source)
+  }
+  assert.deepEqual(layerViolations({
+    'apps/hub/src/http/access.ts': 'import { digest } from "../platform/db.js"',
+    'apps/hub/src/platform/db.ts': '',
+  }), [])
+  assertRule('IMPORT_LAYER_MATRIX', {
+    'apps/hub/src/http/access.ts': 'import { digest, openDatabase } from "../platform/db.js"',
+    'apps/hub/src/platform/db.ts': '',
   })
 })

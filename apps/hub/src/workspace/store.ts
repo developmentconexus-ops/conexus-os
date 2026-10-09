@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { WorkspaceId, WorkspaceName, createWorkspace, type AccountId, type Input, type Reply } from '@conexus/contract'
-import { admitAccount, grantCreatorMembership, readAdministratorFlag, receiptOf } from '../identity-access/admission.js'
+import { admitAccount, grantCreatorMembership, readAdministratorFlag, receiptOf } from '../identity-access/public.js'
 import type { Database } from '../platform/db.js'
 import { sql } from '../platform/db.js'
 import { idempotent } from '../platform/receipt.js'

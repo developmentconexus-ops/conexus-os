@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { extname, join, relative, sep } from 'node:path'
-import { admitManifest, admitServerTree, type SourceManifest, SUPPORTED_NODE_IMPORTS } from '../../../app-runner/server-manifest.js'
+import { admitManifest, admitServerTree, type SourceManifest, SUPPORTED_NODE_IMPORTS } from '../../../app-runner/public.js'
 import { type Chunk, loadVite } from '../compiler.js'
 import type { CheckContext, Place } from '../context.js'
 import { failed, OK, type Outcome } from '../outcome.js'

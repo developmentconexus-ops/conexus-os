@@ -3,7 +3,7 @@ import {
   ProjectId, ProjectRevision, createProject,
   type AccountId, type SourceRevision, type IdempotencyKey, type Input, type ProjectCreated, type ProjectCard, type ProjectDetail, type ProjectListRow, type WorkspaceId,
 } from '@conexus/contract'
-import { admitProject, admitWorkspace, receiptOf, type Admitted, type WorkspaceScope } from '../identity-access/admission.js'
+import { admitProject, admitWorkspace, receiptOf, type Admitted, type WorkspaceScope } from '../identity-access/public.js'
 import type { Database } from '../platform/db.js'
 import { sql } from '../platform/db.js'
 import { Failure } from '../platform/failure.js'

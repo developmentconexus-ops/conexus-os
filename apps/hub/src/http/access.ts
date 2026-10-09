@@ -6,8 +6,8 @@ import type { AnyOperation, EffectsOf, Input, Out, Reply } from '@conexus/contra
 import type { z } from 'zod'
 import { z as zod } from 'zod'
 import { clearCookie } from './cookies.js'
-import { hubSessionDigest } from '../identity-access/current-session.js'
-import type { CurrentSession, HubSession, HubSessionDigest } from '../identity-access/current-session.js'
+import { digest as digestToken } from '../platform/db.js'
+import type { CurrentSession, HubSession, HubSessionDigest } from '../identity-access/public.js'
 import { Failure, type FailureCode } from '../platform/failure.js'
 import { presentedToken } from '../platform/opaque-token.js'
 import { readCredentialCookie } from './cookies.js'
@@ -178,7 +178,7 @@ const hubSessionOf = async (request: FastifyRequest, policy: ListenerPolicy): Pr
   const token = presentedToken(readCredentialCookie(request, 'hubSession'))
   if (!token) throw new Failure('AUTHENTICATION_REQUIRED')
   if (policy.listener !== 'hub') throw missing('ACCESS_KIND_FOREIGN')
-  const digest = hubSessionDigest(token)
+  const digest = digestToken(token)
   const session = await policy.resolveHubSession(digest)
   if (!session) throw new Failure('AUTHENTICATION_REQUIRED')
   return { type: 'HUB_SESSION', session: Object.freeze({ ...session, digest }) }
@@ -191,7 +191,7 @@ const credentialOf = async (rule: AccessRow['credential'], request: FastifyReque
     case 'HUB_SESSION_COOKIE': {
       const token = presentedToken(readCredentialCookie(request, 'hubSession'))
       if (!token) throw new Failure('AUTHENTICATION_REQUIRED')
-      return { type: 'HUB_SESSION_COOKIE', digest: hubSessionDigest(token) }
+      return { type: 'HUB_SESSION_COOKIE', digest: digestToken(token) }
     }
     default: return rule satisfies never
   }

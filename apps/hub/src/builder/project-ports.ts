@@ -1,5 +1,5 @@
 import type { ProjectId } from '@conexus/contract'
-import type { Admitted, SystemScope, WorkspaceScope } from '../identity-access/admission.js'
+import type { Admitted, SystemScope, WorkspaceScope } from '../identity-access/public.js'
 import { sql } from '../platform/db.js'
 
 /** The Builder's write on the Project's creation transaction: the proof is its check. */

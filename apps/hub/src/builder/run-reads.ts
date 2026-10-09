@@ -1,8 +1,8 @@
 import { z } from 'zod'
 import { ConversationId, type AccountId, type ProjectId } from '@conexus/contract'
 import { OPEN_RUN_STATES } from '../generated/builder-run-vocabulary.js'
-import { admitSystem } from '../identity-access/admission.js'
-import { admitProject } from '../identity-access/admission.js'
+import { admitSystem } from '../identity-access/public.js'
+import { admitProject } from '../identity-access/public.js'
 import { sql, type Database } from '../platform/db.js'
 import { RUN_COLUMNS, RunRow, type BuilderRunSummary } from './run-row.js'
 

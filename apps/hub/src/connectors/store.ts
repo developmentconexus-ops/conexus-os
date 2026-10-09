@@ -6,7 +6,7 @@ import {
 import {
   admitInstallationAdministrator, admitProject, checkApplication,
   type Admitted, type ApplicationScope, type Checked, type ProjectScope, type SystemScope,
-} from '../identity-access/admission.js'
+} from '../identity-access/public.js'
 import type { Database, Mode } from '../platform/db.js'
 import { sql } from '../platform/db.js'
 import { Failure } from '../platform/failure.js'

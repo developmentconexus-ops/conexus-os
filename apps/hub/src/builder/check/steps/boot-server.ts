@@ -1,8 +1,8 @@
 import { lstatSync, readFileSync, realpathSync } from 'node:fs'
 import { createServer, type Server } from 'node:http'
 import { extname, join, sep } from 'node:path'
-import { admitManifest } from '../../../app-runner/server-manifest.js'
-import type { ServerManifest, ValueSchema } from '../../../app-runner/server-manifest.js'
+import { admitManifest } from '../../../app-runner/public.js'
+import type { ServerManifest, ValueSchema } from '../../../app-runner/public.js'
 import { previewContentSecurityPolicy } from '../../../platform/application-csp.js'
 import { classifyAppPath } from '../../../platform/application-path.js'
 

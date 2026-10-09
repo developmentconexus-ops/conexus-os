@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { WorkspaceId, type AccountId, type ProjectId as ProjectIdType } from '@conexus/contract'
 import { OPEN_RUN_STATES } from '../generated/builder-run-vocabulary.js'
-import { admitProject, admitSystem, type Admitted, type SystemScope } from '../identity-access/admission.js'
+import { admitProject, admitSystem, type Admitted, type SystemScope } from '../identity-access/public.js'
 import type { Database, WriteTx } from '../platform/db.js'
 import { sql } from '../platform/db.js'
 import { Failure } from '../platform/failure.js'

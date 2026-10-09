@@ -1,6 +1,6 @@
 import { chownSync, lstatSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { join, sep } from 'node:path'
-import { admitManifest } from '../../../app-runner/server-manifest.js'
+import { admitManifest } from '../../../app-runner/public.js'
 import { APP_FAILURE_CLIENT_SOURCE } from '@conexus/contract'
 import { generateClient } from '../compiler.js'
 import type { CheckContext } from '../context.js'

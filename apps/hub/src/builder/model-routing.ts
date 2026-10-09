@@ -1,7 +1,7 @@
 import type { MastraModelConfig } from '@mastra/core/llm'
 import type { RequestContext } from '@mastra/core/request-context'
 import type { AccountId, BuilderRunId, ConversationId, ModelAccountId, ModelId, ProjectId, ThinkingLevel } from '@conexus/contract'
-import { admitRun, type RunOwner } from '../identity-access/admission.js'
+import { admitRun, type RunOwner } from '../identity-access/public.js'
 import type { Database } from '../platform/db.js'
 import { Failure } from '../platform/failure.js'
 import type { ModelAccountModule, OpenRun } from '../model-account/module.js'

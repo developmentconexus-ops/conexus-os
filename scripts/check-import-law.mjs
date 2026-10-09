@@ -6,13 +6,19 @@ import ts from 'typescript'
 
 const SOURCE_EXTENSIONS = new Set(['.js', '.jsx', '.mjs', '.cjs', '.ts', '.tsx', '.mts', '.cts'])
 const TECHNICAL_HUB_LAYERS = new Set(['generated', 'http', 'platform'])
-// What a Conexus session is has one definition. Every owner needs it and none may fork it,
-// so it is admitted across owner boundaries the way the HTTP problem helper is.
-const SESSION_CONTRACT = 'apps/hub/src/identity-access/current-session.ts'
-const ADMISSION_CONTRACT = 'apps/hub/src/identity-access/admission.ts'
-// What a Project's application server manifest admits has one definition too: the Builder's build and
-// check and the application runner must refuse exactly the same manifests.
-const APPLICATION_SERVER_CONTRACT = 'apps/hub/src/app-runner/server-manifest.ts'
+export const HUB_OWNERS = Object.freeze({
+  'identity-access': { entries: ['public.ts'], dependencies: [] },
+  'app-runner': { entries: ['public.ts'], dependencies: [] },
+  builder: { entries: [], dependencies: ['identity-access', 'app-runner', 'model-account', 'registry'] },
+  connectors: { entries: [], dependencies: ['identity-access'] },
+  hosting: { entries: [], dependencies: [] },
+  'model-account': { entries: ['module.ts'], dependencies: ['identity-access'] },
+  project: { entries: [], dependencies: ['identity-access'] },
+  registry: { entries: ['public.ts'], dependencies: ['identity-access'] },
+  telemetry: { entries: [], dependencies: [] },
+  workspace: { entries: [], dependencies: ['identity-access'] },
+})
+const SESSION_TYPES = new Set(['CurrentSession', 'HubSession', 'HubSessionDigest'])
 // The application runner's worker loads the one admitted handler module whose path the supervisor
 // fixed for this invocation, inside its sandbox. It is the only computed import in production.
 const ADMITTED_HANDLER_LOADER = 'apps/hub/src/app-runner/worker.ts'
@@ -21,16 +27,11 @@ const ADMITTED_HANDLER_LOADER = 'apps/hub/src/app-runner/worker.ts'
 const CHECK_COMPILER_LOADER = 'apps/hub/src/builder/check/compiler.ts'
 // What a Failure is has one definition too: every layer throws it, and the HTTP handler answers it.
 const FAILURE_CONTRACT = 'apps/hub/src/platform/failure.ts'
-const MODEL_ACCOUNT_MODULE = 'apps/hub/src/model-account/module.ts'
-const MODEL_ACCOUNT_CONSUMERS = new Set([
-  'apps/hub/src/builder/module.ts',
-  'apps/hub/src/builder/model-routing.ts',
-  'apps/hub/src/builder/harness/request-context.ts',
-])
 const HTTP_TARGETS = new Set([
   'apps/hub/src/platform/logger.ts',
   FAILURE_CONTRACT,
-  SESSION_CONTRACT,
+  'apps/hub/src/identity-access/public.ts',
+  'apps/hub/src/platform/db.ts',
   'apps/hub/src/platform/opaque-token.ts',
   'apps/hub/src/platform/lifetimes.ts',
 ])
@@ -82,7 +83,11 @@ function importsOf(path) {
   const imports = []
   function visit(node) {
     if ((ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) && node.moduleSpecifier) {
-      imports.push({ computed: false, specifier: node.moduleSpecifier.text })
+      const clause = ts.isImportDeclaration(node) ? node.importClause : node
+      const bindings = ts.isImportDeclaration(node) ? clause?.namedBindings : node.exportClause
+      const names = !clause?.name && bindings && (ts.isNamedImports(bindings) || ts.isNamedExports(bindings))
+        ? bindings.elements.map((binding) => ({ name: (binding.propertyName ?? binding.name).text, typeOnly: !!clause?.isTypeOnly || !!binding.isTypeOnly })) : null
+      imports.push({ computed: false, specifier: node.moduleSpecifier.text, names })
     } else if (ts.isImportEqualsDeclaration(node) && ts.isExternalModuleReference(node.moduleReference)) {
       const expression = node.moduleReference.expression
       imports.push({
@@ -189,9 +194,14 @@ export function checkImportLaw(rootDirectory) {
   const relativeRoot = (path) => normalize(relative(root, path))
   const knownFiles = new Set(files.map((path) => resolve(path)))
   const edges = new Map(files.map((path) => [resolve(path), []]))
-  const violations = census.missingAppSources.map((source) =>
+  const unknownOwners = files.map(relativeRoot).filter((path) => {
+    const layer = hubLayer(path)
+    return layer && !TECHNICAL_HUB_LAYERS.has(layer) && !Object.hasOwn(HUB_OWNERS, layer)
+  })
+  const violations = unknownOwners.map((source) => violation('IMPORT_CENSUS', source, '<unknown owner>', 'every Hub owner must declare its public entries and dependencies'))
+  violations.push(...census.missingAppSources.map((source) =>
     violation('IMPORT_CENSUS', source, '<missing src>', 'every application must expose a censused src production root'),
-  )
+  ))
 
   for (const sourcePath of files) {
     const source = relativeRoot(sourcePath)
@@ -229,10 +239,13 @@ export function checkImportLaw(rootDirectory) {
       }
 
       if (sourceLayer && targetLayer && sourceLayer !== targetLayer &&
-          !TECHNICAL_HUB_LAYERS.has(sourceLayer) && !TECHNICAL_HUB_LAYERS.has(targetLayer) &&
-          target !== SESSION_CONTRACT && target !== ADMISSION_CONTRACT && target !== APPLICATION_SERVER_CONTRACT &&
-          !(target === MODEL_ACCOUNT_MODULE && MODEL_ACCOUNT_CONSUMERS.has(source))) {
-        violations.push(violation('IMPORT_OWNER_TO_OWNER', source, specifier, 'semantic owners cannot deep-import one another'))
+          !TECHNICAL_HUB_LAYERS.has(sourceLayer) && !TECHNICAL_HUB_LAYERS.has(targetLayer)) {
+        const sourceOwner = HUB_OWNERS[sourceLayer]
+        const targetOwner = HUB_OWNERS[targetLayer]
+        const targetEntry = target.slice(`apps/hub/src/${targetLayer}/`.length)
+        if (!sourceOwner?.dependencies.includes(targetLayer) || !targetOwner?.entries.includes(targetEntry)) {
+          violations.push(violation('IMPORT_OWNER_TO_OWNER', source, specifier, 'owners consume only declared dependencies through their public entries'))
+        }
       }
 
       if (specifier.startsWith('@conexus/contract/') || (target.startsWith('packages/contract/') && packageName(source) !== 'contract')) {
@@ -251,7 +264,7 @@ export function checkImportLaw(rootDirectory) {
           'apps/hub/src/http/app.ts',
           'apps/hub/src/app-runner/module.ts',
           'apps/hub/src/builder/module.ts',
-          MODEL_ACCOUNT_MODULE,
+          'apps/hub/src/model-account/module.ts',
           'apps/hub/src/connectors/module.ts',
           'apps/hub/src/identity-access/module.ts',
           'apps/hub/src/hosting/module.ts',
@@ -276,12 +289,19 @@ export function checkImportLaw(rootDirectory) {
           !target.startsWith('apps/hub/src/http/') && !HTTP_TARGETS.has(target)) {
         violations.push(violation('IMPORT_LAYER_MATRIX', source, specifier, 'HTTP mechanics cannot import semantic owners, generated contracts, or platform internals'))
       }
+      if (source.startsWith('apps/hub/src/http/') &&
+          (target === 'apps/hub/src/identity-access/public.ts' || target === 'apps/hub/src/platform/db.ts')) {
+        const allowed = imported.names?.length && imported.names.every(({ name, typeOnly }) =>
+          target === 'apps/hub/src/identity-access/public.ts' ? typeOnly && SESSION_TYPES.has(name) : name === 'digest',
+        )
+        if (!allowed) violations.push(violation('IMPORT_LAYER_MATRIX', source, specifier, 'HTTP consumes only IAM session types and the technical token digest, never admission or database operations'))
+      }
       if (source === 'apps/hub/src/workspace/routes.ts' && isRelative) {
         const allowed = [
           'apps/hub/src/http/problem.',
           'apps/hub/src/platform/failure.',
           'apps/hub/src/workspace/',
-          'apps/hub/src/identity-access/current-session.',
+          'apps/hub/src/identity-access/public.',
           'apps/hub/src/http/access.',
           'apps/hub/src/http/cookies.',
         ]
@@ -293,7 +313,7 @@ export function checkImportLaw(rootDirectory) {
         const allowed = [
           'apps/hub/src/platform/db.',
           'apps/hub/src/platform/receipt.',
-          'apps/hub/src/identity-access/admission.',
+          'apps/hub/src/identity-access/public.',
         ]
         if (!allowed.some((prefix) => target.startsWith(prefix))) {
           violations.push(violation('IMPORT_LAYER_MATRIX', source, specifier, 'workspace store may use only the contract, data module, receipt, and admission'))
