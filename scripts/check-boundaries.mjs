@@ -2,7 +2,11 @@ import { readFileSync } from 'node:fs'
 import { join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
+import { loadModule, parseSync, SqlError } from 'libpg-query'
+import { HUB_OWNERS } from './check-import-law.mjs'
 import { joinTemplate, normalizeSql, writeProblems } from './sql-write-lint.mjs'
+
+await loadModule()
 
 const repo = resolve(fileURLToPath(new URL('../', import.meta.url)))
 
@@ -65,6 +69,92 @@ const templateParts = (template) => (ts.isNoSubstitutionTemplateLiteral(template
 const isPgQuery = (symbol) => declaredIn(symbol, /node_modules\/(?:@types\/)?pg\//)
 const isResponseJson = (symbol) => ['Response', 'Body'].includes(parentName(symbol) ?? '')
 
+const SQL_DECLARATION = /apps\/hub\/src\/platform\/db\.ts$/
+// Admission reads preserve cross-owner authorization; Registry pointers and retention await their named waves.
+export const SQL_DEPENDENCIES = Object.freeze([
+  'apps/hub/src/identity-access/admission.ts#missingProject -> project.project_deletion',
+  'apps/hub/src/identity-access/admission.ts#notInDeletion -> project.project_deletion',
+  'apps/hub/src/identity-access/admission.ts#projectSubject -> project.project_deletion',
+  'apps/hub/src/identity-access/admission.ts#projectSubject -> project.project',
+  'apps/hub/src/identity-access/admission.ts#liveProject -> project.project',
+  'apps/hub/src/identity-access/admission.ts#admitInstallationAdministrator -> workspace.workspace',
+  'apps/hub/src/identity-access/admission.ts#applicationAccess -> project.project',
+  'apps/hub/src/identity-access/admission.ts#projectAccess -> project.project',
+  'apps/hub/src/identity-access/admission.ts#lockedRun -> builder.builder_run',
+  'apps/hub/src/identity-access/admission.ts#admitRun -> builder.builder_run',
+  'apps/hub/src/identity-access/admission.ts#admitRun -> project.project',
+  'apps/hub/src/identity-access/authentication.ts#shareProject -> project.project',
+  'apps/hub/src/identity-access/authentication.ts#shareProjectOfSlug -> project.project',
+  'apps/hub/src/identity-access/application-access.ts#ensureApplication -> project.project',
+  'apps/hub/src/registry/retain.ts#retain -> builder.builder_run',
+  'apps/hub/src/registry/served.ts#pointerStatement -> builder.project_working_state',
+])
+const SCHEMA_OWNERS = Object.freeze({ iam: 'identity-access', reg: 'registry', model: 'model-account', connector: 'connectors', project: 'project', builder: 'builder', workspace: 'workspace', platform: 'platform' })
+function hubOwner(path) {
+  if (!path.startsWith('apps/hub/src/')) return null
+  const folder = path.split('/')[3]
+  return folder === 'platform' || Object.hasOwn(HUB_OWNERS, folder) ? folder : undefined
+}
+function isSqlTag(checker, tag, declaration) {
+  let symbol = checker.getSymbolAtLocation(ts.isPropertyAccessExpression(tag) ? tag.name : tag)
+  if (symbol?.flags & ts.SymbolFlags.Alias) symbol = checker.getAliasedSymbol(symbol)
+  return (symbol?.name === 'sql' && declaredIn(symbol, declaration)) || checker.getTypeAtLocation(tag).getCallSignatures().some((signature) => {
+    const source = signature.getDeclaration()?.getSourceFile().fileName
+    return source && declaration.test(source) && signature.getReturnType().getProperties().some((property) => property.name.startsWith('__@sqlBrand') && declaredIn(property, declaration))
+  })
+}
+function sqlText(checker, template, declaration) {
+  if (ts.isNoSubstitutionTemplateLiteral(template)) return template.text
+  let text = template.head.text
+  for (const [index, span] of template.templateSpans.entries()) {
+    const marker = `boundary_hole_${index}`
+    const fragment = checker.getTypeAtLocation(span.expression).getProperties().some((property) => property.name.startsWith('__@sqlBrand') && declaredIn(property, declaration))
+    let replacement = marker
+    if (fragment) {
+      const before = normalizeSql(text)
+      if (/\b(?:from|join|update|into)(?: only)?\s*$|\b[a-z_][\w]*\.$/.test(before)) replacement = marker
+      else if (/^\s*\./.test(span.literal.text)) replacement = 'boundary_alias'
+      else if (/\b(?:where|and|or|on|not|when)\s*$/.test(before)) replacement = 'true'
+      else if (/^(?:\s*AS\b|\s*,)/i.test(span.literal.text) || /(?:\b(?:select|returning)|,)\s*$/.test(before)) replacement = '1'
+      else replacement = ' '
+    }
+    text += replacement + span.literal.text
+  }
+  return text
+}
+
+// Fragments are checked at their declaration as well as in the statement that composes them.
+function sqlRelations(text) {
+  if (!text.trim()) return []
+  let tree
+  for (const candidate of [text, `SELECT 1 WHERE ${text}`, `SELECT 1 ${text}`, `SELECT 1 FROM (VALUES (1)) AS boundary_seed ${text}`]) {
+    try { tree = parseSync(candidate); break } catch (error) { if (!(error instanceof SqlError)) throw error }
+  }
+  if (!tree) return /\b(?:from|join|update|into)\b/.test(normalizeSql(text)) ? [{ table: 'unparsed SQL relation', write: false }] : []
+  const relations = []
+  const visit = (value, inherited = new Set(), write = false, relationFunction = false) => {
+    if (!value || typeof value !== 'object') return
+    if (relationFunction && value.FuncCall?.funcname?.some((name) => name.String?.sval?.includes('boundary_hole_'))) relations.push({ table: 'boundary_hole_function', write: false })
+    const ctes = new Set(inherited)
+    for (const entry of value.withClause?.ctes ?? []) ctes.add(entry.CommonTableExpr.ctename)
+    if (typeof value.relname === 'string') {
+      const { schemaname, relname } = value
+      if (!write && !schemaname && ctes.has(relname)) return
+      relations.push({ table: schemaname ? `${schemaname}.${relname}` : relname, write })
+    }
+    for (const [key, child] of Object.entries(value)) {
+      if (key === 'lockedRels') continue
+      if (Array.isArray(child)) child.forEach((item) => { visit(item, ctes, false, relationFunction) }); else visit(child, ctes, key === 'relation', relationFunction || key === 'RangeFunction')
+    }
+  }
+  visit(tree)
+  return relations
+}
+
+export function staleSqlDependencies(dependencies, matched) {
+  return dependencies.filter((entry) => !matched.has(entry)).map((entry) => `stale SQL dependency: ${entry}`)
+}
+
 const VERBS = Object.freeze({ 'insert into': 'INSERT', update: 'UPDATE', 'delete from': 'DELETE', 'merge into': 'MERGE' })
 
 // The writes of a template that break a rule: one entry per table and verb written outside the rule's modules.
@@ -89,9 +179,9 @@ const isGateReference = (checker, node, declaration) => {
   return symbol.name === 'openGate' && declaredIn(symbol, declaration)
 }
 
-export const findings = (program, { root = repo, pgEdge = DATABASE_EDGE, responseEdge = RESPONSE_EDGE, authorityWriters = AUTHORITY_TABLE_WRITERS, splitTables = {}, gate = GATE_OPENER } = {}) => {
+export const findings = (program, { root = repo, pgEdge = DATABASE_EDGE, responseEdge = RESPONSE_EDGE, authorityWriters = AUTHORITY_TABLE_WRITERS, splitTables = {}, gate = GATE_OPENER, sqlTables = null, sqlOwner = hubOwner, sqlTagDeclaration = SQL_DECLARATION, sqlDependencies = [], matchedSqlDependencies = new Set() } = {}) => {
   const checker = program.getTypeChecker()
-  const result = { pgQueryRows: [], pgImportFiles: [], webResponseJson: [], sqlWrites: [], authorityTableWrites: [], gateReferences: [], rawPersonReads: [] }
+  const result = { pgQueryRows: [], pgImportFiles: [], webResponseJson: [], sqlWrites: [], authorityTableWrites: [], gateReferences: [], rawPersonReads: [], sqlOwners: [] }
   for (const file of program.getSourceFiles()) {
     if (file.isDeclarationFile || file.fileName.includes('/node_modules/')) continue
     const path = relative(root, file.fileName)
@@ -115,11 +205,26 @@ export const findings = (program, { root = repo, pgEdge = DATABASE_EDGE, respons
       if (!responseEdge.includes(path) && referencesMember(checker, node, 'json', isResponseJson)) result.webResponseJson.push(`${path}#${enclosingName(node)}`)
       if (ts.isImportDeclaration(node) && !pgEdge.includes(path) && ts.isStringLiteral(node.moduleSpecifier) && node.moduleSpecifier.text === 'pg') result.pgImportFiles.push(path)
       if (!gate.readers.includes(path) && !gate.declaration.test(file.fileName) && isGateReference(checker, node, gate.declaration)) result.gateReferences.push(`${path}#${enclosingName(node) === '<module>' ? moduleVariable(node) : enclosingName(node)}`)
-      if (ts.isTaggedTemplateExpression(node) && ts.isIdentifier(node.tag) && node.tag.text === 'sql') {
+      if (ts.isTaggedTemplateExpression(node) && ((ts.isIdentifier(node.tag) && node.tag.text === 'sql') || isSqlTag(checker, node.tag, sqlTagDeclaration))) {
         const text = joinTemplate(templateParts(node.template))
         const owner = enclosingName(node) === '<module>' ? moduleVariable(node) : enclosingName(node)
         for (const problem of writeProblems(text, splitTables)) result.sqlWrites.push(`${path}#${owner}: ${problem}`)
         for (const write of writesOutside(text, path, authorityWriters)) result.authorityTableWrites.push(`${path}#${owner}: writes ${write}`)
+      }
+      if (sqlTables && sqlOwner(path) !== null && ts.isTaggedTemplateExpression(node) && isSqlTag(checker, node.tag, sqlTagDeclaration)) {
+        const owner = sqlOwner(path)
+        const operation = enclosingName(node) === '<module>' ? moduleVariable(node) : enclosingName(node)
+        for (const { table, write } of sqlRelations(sqlText(checker, node.template, sqlTagDeclaration))) {
+          const location = `${path}#${operation}`
+          const dependency = `${location} -> ${table}`
+          if (table.includes('boundary_hole_')) result.sqlOwners.push(`${location}: dynamic SQL relation`)
+          else if (!owner) result.sqlOwners.push(`${location}: unknown SQL owner`)
+          else if (!Object.hasOwn(sqlTables, table) || !SCHEMA_OWNERS[table.split('.')[0]]) result.sqlOwners.push(`${location}: unregistered SQL relation ${table}`)
+          else if (SCHEMA_OWNERS[table.split('.')[0]] !== owner) {
+            if (!write && sqlDependencies.includes(dependency)) matchedSqlDependencies.add(dependency)
+            else result.sqlOwners.push(`${location}: foreign SQL relation ${table}`)
+          }
+        }
       }
       ts.forEachChild(node, visit)
     }
@@ -142,7 +247,9 @@ const registeredTablesOf = () => {
 }
 
 export const census = () => {
-  const hub = findings(programOf('apps/hub/tsconfig.json'), { splitTables: registeredTablesOf() })
+  const tables = registeredTablesOf()
+  const matchedSqlDependencies = new Set()
+  const hub = findings(programOf('apps/hub/tsconfig.json'), { splitTables: tables, sqlTables: tables, sqlDependencies: SQL_DEPENDENCIES, matchedSqlDependencies })
   const web = findings(programOf('apps/web/tsconfig.json'))
   const obsolete = /\b(?:hub_reader|hub_command|iam_rls|hub_builder_ingress)\b|rls\.|conexus\.(?:account_id|job)\b|\b(?:set_config|current_setting)\s*\(/i
   const obsoleteRuntimeSymbols = hubSourceFiles().flatMap(({ path, source }) => obsolete.test(source) ? [path] : [])
@@ -154,6 +261,7 @@ export const census = () => {
     authorityTableWrites: hub.authorityTableWrites,
     gateReferences: hub.gateReferences,
     rawPersonReads: hub.rawPersonReads,
+    sqlOwners: [...hub.sqlOwners, ...staleSqlDependencies(SQL_DEPENDENCIES, matchedSqlDependencies)],
     obsoleteRuntimeSymbols,
   }
 }

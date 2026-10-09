@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { resolve } from 'node:path'
 import test from 'node:test'
 import ts from 'typescript'
-import { findings, violations } from '../../scripts/check-boundaries.mjs'
+import { findings, staleSqlDependencies, violations } from '../../scripts/check-boundaries.mjs'
 
 const root = resolve(import.meta.dirname, '../..')
 const fixture = (name, options = {}) => {
@@ -36,7 +36,7 @@ test('the data module and the one caller are the edge', () => {
     rootNames: [resolve(root, 'tests/fixtures/census-boundaries/pg-rows.ts')],
     options: { strict: true, skipLibCheck: true, noEmit: true, target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.NodeNext, moduleResolution: ts.ModuleResolutionKind.NodeNext, types: [] },
   })
-  assert.deepEqual(findings(program, { root, pgEdge: ['tests/fixtures/census-boundaries/pg-rows.ts'], responseEdge: [] }), { pgQueryRows: [], pgImportFiles: [], webResponseJson: [], sqlWrites: [], authorityTableWrites: [], gateReferences: [], rawPersonReads: [] })
+  assert.deepEqual(findings(program, { root, pgEdge: ['tests/fixtures/census-boundaries/pg-rows.ts'], responseEdge: [] }), { pgQueryRows: [], pgImportFiles: [], webResponseJson: [], sqlWrites: [], authorityTableWrites: [], gateReferences: [], rawPersonReads: [], sqlOwners: [] })
 })
 
 test('a write whose filter is not visible in its template is found, and a write with one is not', () => {
@@ -129,4 +129,43 @@ test('every finding is prohibited unless it is an explicit boundary exception', 
   assert.deepEqual(violations({ pgQueryRows: ['a.ts#x'], webResponseJson: ['apps/web/src/app/failure.ts#readFailure'], gateReferences: ['a.ts#y'] }), ['pgQueryRows: a.ts#x', 'gateReferences: a.ts#y'])
   assert.deepEqual(violations({ webResponseJson: ['a.ts#x', 'b.ts#y'] }, { webResponseJson: ['a.ts#x'] }), ['webResponseJson: b.ts#y'])
   assert.deepEqual(violations({ authorityTableWrites: ['DELETE iam.account'], sqlWrites: ['a merge'], pgImportFiles: ['a.ts'] }), ['authorityTableWrites: DELETE iam.account', 'sqlWrites: a merge', 'pgImportFiles: a.ts'])
+})
+
+test('SQL ownership follows the actual tag declaration, registered relations and scoped CTEs', () => {
+  const path = 'tests/fixtures/census-boundaries/sql-relations.ts'
+  const prefix = `${path}#`
+  const sqlTables = { 'project.project': [], 'iam.account': [], 'unknown.project': [] }
+  const options = { sqlTables, sqlOwner: (source) => source === path ? 'project' : null }
+  const expected = [
+    ['quoted', 'foreign SQL relation iam.account'],
+    ['aliased', 'foreign SQL relation iam.account'],
+    ['localAlias', 'foreign SQL relation iam.account'],
+    ['destructuredAlias', 'foreign SQL relation iam.account'],
+    ['bracketAlias', 'foreign SQL relation iam.account'],
+    ['nested', 'foreign SQL relation iam.account'],
+    ['foreignWrite', 'foreign SQL relation iam.account'],
+    ['unknown', 'unregistered SQL relation project.unregistered'],
+    ['unknownSchema', 'unregistered SQL relation unknown.project'],
+    ['unqualified', 'unregistered SQL relation project'],
+    ['nestedCte', 'foreign SQL relation iam.account'],
+    ['cteScope', 'unregistered SQL relation owned'],
+    ['quotedCase', 'unregistered SQL relation IAM.account'],
+    ['dynamic', 'dynamic SQL relation'],
+    ['dynamicQuoted', 'dynamic SQL relation'],
+    ['dynamicJoin', 'dynamic SQL relation'],
+    ['dynamicComma', 'dynamic SQL relation'],
+    ['dynamicFragment', 'dynamic SQL relation'],
+    ['dynamicFunction', 'dynamic SQL relation'],
+    ['composed', 'foreign SQL relation iam.account'],
+  ].map(([operation, problem]) => `${prefix}${operation}: ${problem}`)
+  assert.deepEqual(fixture('sql-relations', options).sqlOwners.sort(), expected.sort())
+
+  const dependency = `${prefix}nested -> iam.account`
+  const matchedSqlDependencies = new Set()
+  const allowed = fixture('sql-relations', { ...options, sqlDependencies: [dependency, `${prefix}foreignWrite -> iam.account`], matchedSqlDependencies })
+  assert.deepEqual(allowed.sqlOwners.sort(), expected.filter((entry) => entry !== `${prefix}nested: foreign SQL relation iam.account`).sort())
+  assert.deepEqual(staleSqlDependencies([dependency], matchedSqlDependencies), [])
+  assert.deepEqual(staleSqlDependencies([`${prefix}owned -> iam.account`], matchedSqlDependencies), [`stale SQL dependency: ${prefix}owned -> iam.account`])
+  const unknownOwner = fixture('sql-relations', { ...options, sqlOwner: (source) => source === path ? undefined : null }).sqlOwners
+  assert.ok(unknownOwner.includes(`${prefix}owned: unknown SQL owner`))
 })

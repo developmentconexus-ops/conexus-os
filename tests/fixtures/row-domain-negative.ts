@@ -1,15 +1,19 @@
 import type { z } from 'zod'
-import type { WorkspaceId } from '@conexus/contract'
+import type { ProjectCard, WorkspaceId } from '@conexus/contract'
+import type { ActivityRow } from '../../apps/hub/src/builder/project-activity-row.js'
 import type { RunRow } from '../../apps/hub/src/builder/run-row.js'
-import type { CardRow, DetailRow, ListRow } from '../../apps/hub/src/project/rows.js'
+import type { DetailRow, ListRow } from '../../apps/hub/src/project/rows.js'
 
 type Run = z.output<typeof RunRow>
-type Card = z.output<typeof CardRow>
+type Card = ProjectCard
+type Activity = z.output<typeof ActivityRow>
 declare const base: Pick<Run, 'builderRunId' | 'projectId' | 'conversationId' | 'baseSourceRevision' | 'requestText' | 'createdAt' | 'cancellationRequested'>
 declare function acceptRun(run: Run): void
 declare function acceptCard(card: Card): void
 declare const workspaceId: WorkspaceId
 declare const live: Extract<Card, { state: 'live' }>
+declare const active: Extract<Activity, { createdAt: Date }>
+declare function acceptActivity(row: Activity): void
 
 acceptRun({ ...base, state: 'SUCCEEDED', phase: null, resultSourceRevision: null, resultKind: 'RESPONSE_ONLY', failureCode: null })
 // @ts-expect-error Success requires a result and cannot contain a failure.
@@ -25,9 +29,9 @@ acceptRun({ ...base, builderRunId: workspaceId, state: 'QUEUED', phase: null, re
 // @ts-expect-error A Project id cannot identify a conversation.
 acceptRun({ ...base, conversationId: base.projectId, state: 'QUEUED', phase: null, resultSourceRevision: null, resultKind: null, failureCode: null })
 // @ts-expect-error Success cannot be the latest run without a result.
-acceptCard({ ...live, latestRun: { state: 'SUCCEEDED', resultKind: null } })
+acceptActivity({ ...active, latestRun: { state: 'SUCCEEDED', resultKind: null } })
 // @ts-expect-error An open run cannot carry a completed result.
-acceptCard({ ...live, latestRun: { state: 'RUNNING', resultKind: 'SOURCE_CHANGED' } })
+acceptActivity({ ...active, latestRun: { state: 'RUNNING', resultKind: 'SOURCE_CHANGED' } })
 // @ts-expect-error A Workspace id cannot identify a Project card.
 acceptCard({ ...live, projectId: workspaceId })
 
@@ -48,3 +52,11 @@ if (run.state === 'QUEUED') {
   void result
   void phase
 }
+
+declare const activity: Extract<Activity, { latestRun: null }>
+// @ts-expect-error Missing latest run cannot carry an activity date.
+acceptActivity({ ...activity, createdAt: new Date() })
+// @ts-expect-error Missing latest run cannot carry its sort microseconds.
+acceptActivity({ ...activity, sortAt: 1n })
+// @ts-expect-error A present latest run requires both its date and microseconds.
+acceptActivity({ ...activity, latestRun: { state: 'QUEUED', resultKind: null } })
