@@ -169,3 +169,37 @@ test('SQL ownership follows the actual tag declaration, registered relations and
   const unknownOwner = fixture('sql-relations', { ...options, sqlOwner: (source) => source === path ? undefined : null }).sqlOwners
   assert.ok(unknownOwner.includes(`${prefix}owned: unknown SQL owner`))
 })
+
+test('read dependencies never authorize INTO, DML or unsupported statement effects', () => {
+  const path = 'tests/fixtures/census-boundaries/sql-ownership-regressions.ts'
+  const sqlTables = { 'iam.account': [], 'project.project': [], 'project.project_deletion': [], 'builder.builder_run': [], 'builder.project_working_state': [] }
+  const writes = ['into', 'insert', 'update', 'remove', 'merge', 'cteWrite']
+  const unsupported = { truncate: 'TruncateStmt', lock: 'LockStmt', createAs: 'CreateTableAsStmt', copy: 'CopyStmt' }
+  const refused = [...writes, ...Object.keys(unsupported)].map((operation) => `${path}#${operation} -> iam.account`)
+  const reads = [`${path}#authorizedRunLock -> builder.builder_run`, `${path}#registryPointer -> builder.project_working_state`, `${path}#registryRetention -> builder.builder_run`]
+  const matchedSqlDependencies = new Set()
+  const found = fixture('sql-ownership-regressions', { sqlTables, sqlDependencies: [...refused, ...reads], matchedSqlDependencies, sqlOwner: (source) => source === path ? 'project' : null })
+  const effects = new Set([...writes, ...Object.keys(unsupported)])
+  assert.deepEqual(found.sqlOwners.filter((entry) => effects.has(entry.split('#')[1].split(':')[0])).sort(), [
+    ...writes.map((operation) => `${path}#${operation}: foreign SQL relation iam.account`),
+    ...Object.entries(unsupported).map(([operation, kind]) => `${path}#${operation}: unsupported SQL statement ${kind}`),
+  ].sort())
+  assert.deepEqual([...matchedSqlDependencies].sort(), reads.sort())
+  assert.deepEqual(staleSqlDependencies([...refused, ...reads], matchedSqlDependencies).sort(), refused.map((entry) => `stale SQL dependency: ${entry}`).sort())
+  for (const operation of ['ownInto', 'authorizedProjectLock', 'authorizedRunLock', 'registryPointer', 'registryRetention']) assert.ok(!found.sqlOwners.some((entry) => entry.startsWith(`${path}#${operation}:`)))
+
+  const admissionReads = [`${path}#authorizedProjectLock -> project.project`, `${path}#authorizedProjectLock -> project.project_deletion`, `${path}#authorizedRunLock -> builder.builder_run`]
+  const admitted = new Set()
+  const iam = fixture('sql-ownership-regressions', { sqlTables, sqlDependencies: admissionReads, matchedSqlDependencies: admitted, sqlOwner: (source) => source === path ? 'identity-access' : null })
+  assert.deepEqual([...admitted].sort(), admissionReads.sort())
+  assert.ok(!iam.sqlOwners.some((entry) => /#authorized(?:Project|Run)Lock:/.test(entry)))
+})
+
+test('CTE definitions observe declaration order, recursive visibility and lexical scopes', () => {
+  const path = 'tests/fixtures/census-boundaries/sql-ownership-regressions.ts'
+  const operations = new Set(['nonrecursive', 'forward', 'earlier', 'recursive', 'recursiveForward', 'outer', 'nestedHidden', 'siblingScope', 'statementScope'])
+  const found = fixture('sql-ownership-regressions', { sqlTables: { 'project.project': [], 'iam.account': [] }, sqlOwner: (source) => source === path ? 'project' : null })
+  assert.deepEqual(found.sqlOwners.filter((entry) => operations.has(entry.split('#')[1].split(':')[0])).sort(), [
+    ['nonrecursive', 'project'], ['forward', 'later'], ['nestedHidden', 'project'], ['siblingScope', 'hidden'], ['statementScope', 'project'],
+  ].map(([operation, relation]) => `${path}#${operation}: unregistered SQL relation ${relation}`).sort())
+})

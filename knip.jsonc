@@ -41,6 +41,7 @@
         "tests/fixtures/census-boundaries/web-json.ts",
         "tests/fixtures/census-boundaries/sql-writes.ts",
         "tests/fixtures/census-boundaries/sql-relations.ts",
+        "tests/fixtures/census-boundaries/sql-ownership-regressions.ts",
         "tests/fixtures/census-boundaries/authority-writes.ts",
         "tests/fixtures/census-boundaries/gate-db.ts",
         "tests/fixtures/census-boundaries/gate-uses.ts",

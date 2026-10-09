@@ -124,6 +124,8 @@ function sqlText(checker, template, declaration) {
 }
 
 // Fragments are checked at their declaration as well as in the statement that composes them.
+const SQL_STATEMENT_TARGETS = Object.freeze({ SelectStmt: null, InsertStmt: 'relation', UpdateStmt: 'relation', DeleteStmt: 'relation', MergeStmt: 'relation' })
+
 function sqlRelations(text) {
   if (!text.trim()) return []
   let tree
@@ -134,17 +136,32 @@ function sqlRelations(text) {
   const relations = []
   const visit = (value, inherited = new Set(), write = false, relationFunction = false) => {
     if (!value || typeof value !== 'object') return
+    const kind = Object.keys(value).find((key) => key.endsWith('Stmt'))
+    if (kind && !Object.hasOwn(SQL_STATEMENT_TARGETS, kind)) {
+      relations.push({ problem: `unsupported SQL statement ${kind}` })
+      return
+    }
+    const content = kind ? value[kind] : value
     if (relationFunction && value.FuncCall?.funcname?.some((name) => name.String?.sval?.includes('boundary_hole_'))) relations.push({ table: 'boundary_hole_function', write: false })
     const ctes = new Set(inherited)
-    for (const entry of value.withClause?.ctes ?? []) ctes.add(entry.CommonTableExpr.ctename)
+    const definitions = content.withClause?.ctes ?? []
+    if (content.withClause?.recursive) for (const entry of definitions) ctes.add(entry.CommonTableExpr.ctename)
+    for (const entry of definitions) {
+      visit(entry.CommonTableExpr.ctequery, ctes)
+      ctes.add(entry.CommonTableExpr.ctename)
+    }
     if (typeof value.relname === 'string') {
       const { schemaname, relname } = value
       if (!write && !schemaname && ctes.has(relname)) return
       relations.push({ table: schemaname ? `${schemaname}.${relname}` : relname, write })
     }
-    for (const [key, child] of Object.entries(value)) {
-      if (key === 'lockedRels') continue
-      if (Array.isArray(child)) child.forEach((item) => { visit(item, ctes, false, relationFunction) }); else visit(child, ctes, key === 'relation', relationFunction || key === 'RangeFunction')
+    for (const [key, child] of Object.entries(content)) {
+      if (key === 'lockedRels' || key === 'withClause') continue
+      if (kind === 'SelectStmt' && key === 'intoClause') {
+        visit(child.rel, ctes, true)
+        continue
+      }
+      if (Array.isArray(child)) child.forEach((item) => { visit(item, ctes, false, relationFunction) }); else visit(child, ctes, Boolean(kind && key === SQL_STATEMENT_TARGETS[kind]), relationFunction || key === 'RangeFunction')
     }
   }
   visit(tree)
@@ -214,10 +231,11 @@ export const findings = (program, { root = repo, pgEdge = DATABASE_EDGE, respons
       if (sqlTables && sqlOwner(path) !== null && ts.isTaggedTemplateExpression(node) && isSqlTag(checker, node.tag, sqlTagDeclaration)) {
         const owner = sqlOwner(path)
         const operation = enclosingName(node) === '<module>' ? moduleVariable(node) : enclosingName(node)
-        for (const { table, write } of sqlRelations(sqlText(checker, node.template, sqlTagDeclaration))) {
+        for (const { table, write, problem } of sqlRelations(sqlText(checker, node.template, sqlTagDeclaration))) {
           const location = `${path}#${operation}`
           const dependency = `${location} -> ${table}`
-          if (table.includes('boundary_hole_')) result.sqlOwners.push(`${location}: dynamic SQL relation`)
+          if (problem) result.sqlOwners.push(`${location}: ${problem}`)
+          else if (table.includes('boundary_hole_')) result.sqlOwners.push(`${location}: dynamic SQL relation`)
           else if (!owner) result.sqlOwners.push(`${location}: unknown SQL owner`)
           else if (!Object.hasOwn(sqlTables, table) || !SCHEMA_OWNERS[table.split('.')[0]]) result.sqlOwners.push(`${location}: unregistered SQL relation ${table}`)
           else if (SCHEMA_OWNERS[table.split('.')[0]] !== owner) {
