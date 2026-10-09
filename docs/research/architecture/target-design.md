@@ -51,10 +51,12 @@ endereço próprio.
 - **Sentry e Grafana Cloud:** erros e logs.
 - **GitHub Actions e GHCR:** build e imagens.
 
-**Custo com 4 empresas** ([deployment §10](../deployment/study.md#10-draft-for-the-spec)):
-- cerca de **R$260 por mês** com o Neon no plano grátis, depois do refactor que deixa o banco dormir;
-- cerca de **R$360** com o Neon Launch;
-- cerca de R$180 disso é Cloudflare, E2B, e-mail e domínio, que custam o mesmo em qualquer opção.
+**Custo com 4 empresas** (§8 item por item; modelo em
+[deployment §10](../deployment/study.md#10-draft-for-the-spec)):
+- cerca de **R$200–225 por mês** nos primeiros meses, com o crédito do E2B e o Neon grátis;
+- cerca de **R$250** depois, com o Neon grátis (exige o refactor que deixa o banco dormir);
+- cerca de **R$350** com o Neon Launch;
+- cerca de R$150–180 disso é Cloudflare, E2B e domínio, que custam o mesmo em qualquer opção.
 
 **Três regras que valem para tudo:**
 1. **Tudo que uma empresa configura pertence ao Workspace dela** (✅ C-024 emendada).
@@ -469,11 +471,39 @@ Hoje, um Projeto com app recusa editar uma migração que já foi aplicada, para
 ## 8. Quanto custa
 
 Modelo: `node docs/research/deployment/cost.mjs`. Os preços são de páginas dos fornecedores,
-2026-10-09.
+2026-10-09. Os valores em dólar foram convertidos a R$5,01, a PTAX de 2026-10-08.
+
+### Item por item, com 4 empresas
+
+| Item | Serviço e plano | Valor por mês | O que está incluso | Quando sobe |
+| --- | --- | --- | --- | --- |
+| Servidor (Hub, Builder, serviço de dados) | Hostinger VPS KVM 2, São Paulo | **R$70,99** no mês avulso (visto pelo operador); o plano de 12 meses fica mais barato (preço no checkout) | 2 vCPU, 8 GB, 100 GB NVMe, 8 TB de tráfego, backup semanal e 1 snapshot | KVM 4 (4 vCPU, 16 GB) se o Builder precisar de mais CPU |
+| Banco de dados | Neon, plano Free | **R$0** | 100 horas de computação por projeto, 0,5–1 GB, restauração de 6 horas | ao passar para o Launch: cerca de **R$100** (US$0,106 por hora de computação, US$0,35 por GB e US$0,20 por GB de histórico), sem mensalidade mínima |
+| Apps na nuvem | Cloudflare Workers for Platforms | **R$125** (US$25) | 20 milhões de chamadas, 60 milhões de ms de CPU, 1.000 scripts | US$0,30 por milhão de chamadas a mais; US$0,02 por script a mais |
+| Plano base de Workers | Cloudflare Workers Paid | **R$25** (US$5), se o Workers for Platforms exigir (não verificado) | 10 milhões de chamadas; também libera Containers | — |
+| DNS, HTTPS, túnel | Cloudflare | **R$0** | certificado grátis para o domínio e um nível de subdomínio; até 1.000 túneis | — |
+| Proteção do serviço de dados | Cloudflare Access | **R$0** | até 50 usuários; tokens de serviço não contam | US$7 por usuário acima de 50 |
+| Endereço próprio de empresa | Cloudflare for SaaS | **R$0** | 100 endereços | US$0,10 por endereço a mais |
+| Backups e arquivos | Cloudflare R2 | **R$0** | 10 GB, sem custo de saída | US$0,015 por GB a mais |
+| Máquinas do Builder | E2B Hobby | **R$0** até gastar o crédito único de US$100 (cerca de 750 horas); depois cerca de **R$27** (40 horas a US$0,13) | sessões de até 1 hora, 20 ao mesmo tempo | Pro: **R$750** (US$150) por mês mais o uso, quando precisar de sessões maiores ou mais simultâneas |
+| E-mail | Resend Free | **R$0** | 3.000 e-mails por mês, 100 por dia | Pro US$20 (cerca de R$100) |
+| Erros | Sentry Developer | **R$0** | 1 usuário, 5 mil erros por mês | Team US$26 (cerca de R$130) |
+| Logs e métricas | Grafana Cloud Free | **R$0** | 10 mil séries, 50 GB de logs, 14 dias | — |
+| Build e imagens | GitHub Actions + GHCR | **R$0** | grátis para repositório público | minutos pagos se o repositório for privado |
+| Domínio principal | já registrado na Hostinger | já pago | — | — |
+| Segundo domínio, para os apps (decisão 19) | `.com.br` no Registro.br | **cerca de R$3** (R$40 por ano) | — | — |
+| Modelos de IA | conta de cada empresa (C-032) | **R$0** para a Conexus | — | — |
+
+**Totais com 4 empresas:**
+- **Primeiros meses** (crédito do E2B e Neon grátis): cerca de **R$200–225**.
+- **Depois do crédito do E2B, com o Neon grátis** (exige o refactor): cerca de **R$250**.
+- **Com o Neon Launch:** cerca de **R$350**.
+
+### Com mais empresas
 
 | Empresas | VPS Hostinger + Neon | Detalhe |
 | --- | --- | --- |
-| 4 | **cerca de R$360** (Neon Launch) ou **cerca de R$260** (Neon grátis, depois do refactor) | VPS KVM 2 (R$70,99 no mês avulso, visto pelo operador); Cloudflare cerca de R$150; E2B cerca de R$25 depois do crédito de US$100 |
+| 4 | **cerca de R$350** (Neon Launch) ou **cerca de R$250** (Neon grátis, depois do refactor) | a tabela acima |
 | 20 | cerca de R$590 | o Neon cresce com o uso; o E2B passa a pesar |
 | 100 | cerca de R$2.700 (cerca de R$27 por empresa) | metade é E2B: o custo a gerenciar será o tempo de máquina do Builder |
 
