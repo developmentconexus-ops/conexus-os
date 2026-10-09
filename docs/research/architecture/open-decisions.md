@@ -49,7 +49,10 @@ The studies behind it:
      met.
    - The target is not the old machinery (50 policies, helper roles, a role switch per transaction).
      It is:
-     - one policy per company-scoped table, `workspace_id = current_setting('app.workspace_id')::uuid`;
+     - one policy per company-scoped table,
+       `workspace_id = nullif(current_setting('app.workspace_id', true), '')::uuid`. The `nullif` matters: on a
+       reused connection the setting reads `''`, not null, once any earlier transaction set it, and `''::uuid`
+       fails ([deployment probe](../deployment/study.md#11-provider-independence-protocols-and-ports));
      - `FORCE ROW LEVEL SECURITY`;
      - a runtime role that owns no table;
      - `SET LOCAL app.workspace_id` once per transaction, from the admission proof.

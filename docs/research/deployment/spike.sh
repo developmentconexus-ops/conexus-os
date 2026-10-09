@@ -42,8 +42,8 @@ create table core.connection (id int generated always as identity primary key, w
 alter table core.connection enable row level security;
 alter table core.connection force row level security;
 create policy tenant on core.connection
-  using (workspace_id = current_setting('app.workspace_id', true)::uuid)
-  with check (workspace_id = current_setting('app.workspace_id', true)::uuid);
+  using (workspace_id = nullif(current_setting('app.workspace_id', true), '')::uuid)
+  with check (workspace_id = nullif(current_setting('app.workspace_id', true), '')::uuid);
 grant select, insert, update, delete on core.connection to hub_runtime;
 begin; set local app.workspace_id = '$WA'; insert into core.connection (workspace_id, name) values ('$WA', 'ERP da empresa A'); commit;
 begin; set local app.workspace_id = '$WB'; insert into core.connection (workspace_id, name) values ('$WB', 'ERP da empresa B'); commit;
@@ -162,8 +162,8 @@ create table core.connection (id int generated always as identity primary key, w
 alter table core.connection enable row level security;
 alter table core.connection force row level security;
 create policy tenant on core.connection
-  using (workspace_id = current_setting('app.workspace_id', true)::uuid)
-  with check (workspace_id = current_setting('app.workspace_id', true)::uuid);
+  using (workspace_id = nullif(current_setting('app.workspace_id', true), '')::uuid)
+  with check (workspace_id = nullif(current_setting('app.workspace_id', true), '')::uuid);
 grant select, insert, update, delete on core.connection to hub4_runtime;
 insert into core.connection (workspace_id, name) values ('$WA', 'ERP da empresa A'), ('$WB', 'ERP da empresa B');
 SQL

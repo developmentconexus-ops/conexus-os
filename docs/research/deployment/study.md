@@ -85,6 +85,9 @@ Command: `bash docs/research/deployment/census.sh`
 | E6 the shortest interval: the Builder's run lease | every 10 s | `apps/hub/src/builder/module.ts:91` |
 | E7 a session-level lock held for the life of the Hub | 1 connection, always open | `apps/hub/src/platform/db.ts:359-360` |
 | E8 container image, Compose file or deploy workflow for the Hub | 0 | none |
+| V1 vendor SDKs imported by Hub code | 8 files | `pg` (3, a standard protocol), `openid-client` (1, OIDC), `@mastra/pg` (1), `e2b` and `@mastra/e2b` (3) |
+| V2 E2B SDK types used directly by the Builder, beside Mastra's sandbox interface | 15 lines in 3 files | `apps/hub/src/builder/sandbox.ts:5`, `conversation-sandboxes.ts:2`, `application-artifact-runtime.ts:2-3` |
+| V3 the sandbox interface and adapters Mastra ships | 4 | `WorkspaceSandbox` (`@mastra/core/dist/workspace/sandbox/sandbox.d.ts:257`), `MastraSandbox` (`mastra-sandbox.d.ts:148`), `E2BSandbox` (`@mastra/e2b/dist/sandbox/index.d.ts:134`), `LocalSandbox` (`local-sandbox.d.ts:128`) |
 
 ### How it works now
 
@@ -305,7 +308,7 @@ over (section 4 cites each). P4 adds the case of an admin that does bypass row s
 | Claim | How it was tested | Result |
 | --- | --- | --- |
 | P0. The admin role cannot widen itself | `create role escape bypassrls` as the admin | Refused: "Only roles with the BYPASSRLS attribute may create roles with the BYPASSRLS attribute" |
-| P1. The simple tenant policy works without a superuser | Control database `hub` made by the admin; `core.connection` with `FORCE ROW LEVEL SECURITY` and one policy, `workspace_id = current_setting('app.workspace_id', true)::uuid`; a runtime role that owns no table | A query with **no** workspace filter returns only company A's row. With no company set: 0 rows. Writing a row for company B while A is set: refused by the policy. The runtime turning the policy off: "must be owner". The owning admin with no company set: 0 rows (FORCE binds the owner too) |
+| P1. The simple tenant policy works without a superuser | Control database `hub` made by the admin; `core.connection` with `FORCE ROW LEVEL SECURITY` and one policy, `workspace_id = nullif(current_setting('app.workspace_id', true), '')::uuid` (section 11 says why `nullif`); a runtime role that owns no table | A query with **no** workspace filter returns only company A's row. With no company set: 0 rows. Writing a row for company B while A is set: refused by the policy. The runtime turning the policy off: "must be owner". The owning admin with no company set: 0 rows (FORCE binds the owner too) |
 | P1. What the policy does not stop | The runtime sets company B itself | It reads company B's row. The policy stops a **missed filter**; it does not stop SQL an attacker writes. That is why the company comes from the admission proof, set once per transaction by the Hub, never from a request |
 | P1. A logical dump of the control database needs a planned role | `pg_dump` as the owning admin; then as `hub_backup` with a read-all policy and `--enable-row-security` | The owner fails: "query would be affected by row-level security policy". `hub_backup` dumps both companies' rows (2 of 2), with no `BYPASSRLS` anywhere |
 | P2. A company database and its apps are made at runtime by the admin | `company_a` with two apps and `company_b` with one; per app a `NOLOGIN` owner and a `LOGIN` runtime role; `CONNECT` revoked from `PUBLIC` | App 1 reads its own 10,000 rows. App 1 reading app 2: "permission denied for schema app2". `SET ROLE` to app 2: refused. Opening company B or the control database: "User does not have CONNECT privilege". Creating a schema, or a table in `public`: refused. App 1 sees the schema names of its own company (`app1,app2`), as C-037 accepts |
@@ -521,3 +524,99 @@ section 8.
 - Cloud Run does not pay in São Paulo: Tier 2 prices, and a warm instance for the Builder.
 - At 100 companies E2B is about half of every total. The Builder's sandbox time is the cost to
   manage then (pause, share, or run them ourselves), not the host.
+
+
+## 11. Provider independence: protocols and ports
+
+The operator asked, on 2026-10-09, whether Conexus can keep its logic and treat the infrastructure
+as an abstraction, the way Mastra runs on Neon, Supabase or E2B.
+
+### The names and the reference
+
+- **Twelve-Factor, factor IV:** "Treat backing services as attached resources". A deploy can swap a
+  local database for a managed one "without any changes to the app's code"
+  ([12factor.net/backing-services](https://12factor.net/backing-services)).
+- **Ports and adapters** (hexagonal architecture): the core depends on an interface it owns; each
+  provider is an adapter chosen by configuration.
+- **Mastra does exactly this in its installed code** (V3), with three layers:
+  - an interface in the core, `WorkspaceSandbox`;
+  - a base class, `MastraSandbox`;
+  - adapters: one per provider in its own package (`@mastra/e2b`'s `E2BSandbox`), and one local
+    adapter in the core (`LocalSandbox`).
+
+  Its storage follows the same pattern: `MastraCompositeStore` (`storage/base.d.ts:252`) in front
+  of `@mastra/pg`, `@mastra/libsql` and `@mastra/duckdb`, all installed.
+
+### The rule this study proposes
+
+1. **Prefer a standard protocol to an interface of our own.** PostgreSQL's wire protocol, the S3
+   API, an OCI image, OpenTelemetry and OIDC are already abstractions; every provider speaks them.
+2. **Write a port only where no standard exists,** and keep **two adapters that run**:
+   - the production one;
+   - a local one, used in development and CI.
+
+   A port with one adapter is a guess about the future; two prove the seam.
+3. **A vendor's own features stay in tooling, never in the product path.** Neon's branch API may
+   create a database for a test; the Hub never calls it.
+4. **Every provider passes the same probe before it is used** (below).
+
+### Part by part
+
+| Part | Standard or port | Adapters: production / local / alternative | Vendor code in the product path today | What changes |
+| --- | --- | --- | --- | --- |
+| Databases | **PostgreSQL protocol and plain SQL, no superuser** (P0 to P4) | Neon / PostgreSQL in Docker / Supabase, RDS, Cloud SQL, Magalu, a VM | none: `pg` is the protocol (V1) | nothing; the probe guards it |
+| Processes | **OCI image**, configuration by environment, secrets as `*_FILE` (E1, E2) | a VM / Docker Compose on a laptop / Cloudflare Containers, Fly, any VM | no image yet (E8) | build the image |
+| Files and Git backups | **S3 API** | R2 / MinIO / S3, Magalu object storage | none (Git on disk, E3) | an S3 client where files leave the disk |
+| Mail | SMTP, or one HTTP sender behind Better Auth's send functions | Resend / a local catcher / Postmark, SES | none yet | one small adapter |
+| Telemetry | **OpenTelemetry (OTLP)** | Grafana Cloud / `infra/telemetry/compose.dev.yaml` / any OTLP backend | already standard (`@opentelemetry/*`) | nothing |
+| Sign-in | Better Auth inside the Hub; OIDC and SAML for company SSO | — | `openid-client` for Keycloak (V1) | replaced by Better Auth (A2) |
+| Builder sandbox | **port: Mastra's `WorkspaceSandbox`** | E2B / `LocalSandbox` / Daytona | **15 lines in 3 files use the E2B SDK directly** (V2): listing, killing, file types, build output | put them behind the interface (or a small Conexus port beside it); then a sandbox provider is configuration |
+| App runtime | **port: the handler contract** (`apps/hub/src/app-runner/worker.ts:165`) | Workers for Platforms / the isolated-vm executor | the runner, deleted by A1 | decided (app runtime 9.1, 9.2) |
+| The path in | configuration, not code | Cloudflare Tunnel / a reverse proxy | none | nothing |
+
+**What not to abstract.** A general "cloud layer" of our own (one API over AWS, Google and Magalu)
+costs more than it saves. Every row above is either a standard or one narrow port with a local
+twin. The infrastructure code (image, Compose file, tunnel configuration, provider setup) is
+**per provider by design**: it is small, it lives in `infra/`, and changing provider means writing
+a new copy of it, not changing the product.
+
+### The provider probe
+
+`docs/research/deployment/provider-probe.mjs` runs the target data layout's checks against **any**
+PostgreSQL, given the admin connection string the provider hands over. It creates two throwaway
+databases and four roles, checks them, and drops them all:
+- the version (17 or later) and the admin's attributes;
+- the latency of a reused connection and of a fresh login, from where it runs;
+- a company database with two apps made at runtime: the app reads its own table; it cannot read
+  the other app, become it, create a schema or open another company's database;
+- the simple tenant policy with a runtime role that owns nothing.
+
+Run against PostgreSQL 17.10 with the two kinds of admin found in section 4:
+
+| Admin | Result | What it showed |
+| --- | --- | --- |
+| `CREATEDB CREATEROLE` (Cloud SQL, RDS) | all checks passed | the admin with no company set sees 0 rows: `FORCE` binds it |
+| `CREATEDB CREATEROLE BYPASSRLS` (Neon, Supabase) | all checks passed | the admin sees both companies' rows: the Hub must never run as it (P4) |
+
+**Two findings from the probe:**
+- **On a reused connection the company setting reads `''`, not null,** once an earlier transaction
+  set it.
+  - With the policy as first written (`current_setting(…)::uuid`), a query with no company set
+    **failed** with "invalid input syntax for type uuid" instead of returning no rows. It fails
+    closed, so nothing leaks, but the error is misleading.
+  - The Hub reuses pooled connections, so the policy must be
+    `nullif(current_setting('app.workspace_id', true), '')::uuid`.
+  - The spike and the open-decisions direction now use that form.
+- **An app login can open the provider's default database `postgres`,** where `CONNECT` is granted
+  to `PUBLIC`.
+  - The admin of a managed provider usually does not own that database, so it cannot revoke this.
+  - Two things keep it harmless:
+    - only the data service holds app passwords (app runtime 11);
+    - nothing of Conexus is kept in `postgres`.
+
+**How the operator uses it:**
+1. Open a free account at the provider.
+2. Copy the admin connection string, from its **direct** endpoint.
+3. Run `PROBE_ADMIN_URL='…' node docs/research/deployment/provider-probe.mjs` from a checkout.
+
+Run it from the VM that will host Conexus, and the latency lines measure the real distance.
