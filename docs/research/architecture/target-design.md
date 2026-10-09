@@ -41,7 +41,7 @@ endereço próprio.
 | **Hub** | Login, empresas, pessoas, permissões, conexões com ERP, contas de modelo, o site da Conexus | VPS Hostinger em São Paulo, container | 🔨 existe; muda para o novo desenho |
 | **Builder** | O agente que cria e altera apps (Mastra) | Mesma VPS, container próprio ou dentro do Hub (⏳ A7) | 🔨 existe dentro do Hub |
 | **Serviço de dados** | Executa as consultas dos apps no banco da empresa, com o login de cada app | Mesma VPS, container | 🆕 (⏳ decisão 3 do runtime) |
-| **Apps gerados** | Telas e handlers de cada app | Cloudflare Workers for Platforms | 🆕 (✅ A1) |
+| **Apps gerados** | Telas e handlers de cada app | Cloudflare Workers for Platforms, longe da VPS que guarda os segredos | 🆕 (✅ A1, reconfirmado) |
 | **Bancos** | Banco do Hub, banco do Builder e um banco por empresa | Neon, região São Paulo | 🆕 (✅ B2) |
 
 **Serviços de apoio:**
@@ -525,7 +525,7 @@ mensalidade mínima).
 | 5 | Banco do Mastra | Banco `builder`, `organizationId` = Workspace | ✅ | Builder 9.1 |
 | 6 | O que um *span* guarda | Só metadados | ✅ | Builder 9.2 |
 | 7 | Como o Builder chama modelos | Pelo Hub | ✅ | Builder 9.4 |
-| 8 | Onde roda o código gerado | Cloudflare Workers for Platforms | ✅ | runtime 9.1 |
+| 8 | Onde roda o código gerado | Cloudflare Workers for Platforms; reconfirmado depois da escolha da VPS: o código gerado nunca roda na máquina que guarda os segredos | ✅ | runtime 9.1, §12 |
 | 9 | Saída de emergência | Contrato portátil; executor isolated-vm testado | ✅ | runtime 9.2 |
 | 10 | Login | Better Auth (SSO por empresa quando precisar) | ✅ | A2 |
 | 11 | Camada de dados | Do zero, sem legado, antes da primeira empresa | ✅ | direção 1 |

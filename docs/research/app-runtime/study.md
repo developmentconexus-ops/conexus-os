@@ -533,4 +533,4 @@ agree that a V8 isolate needs an outer layer that someone keeps patched (section
 - Cloudflare for Startups credits being refused, while budget is the binding constraint. Then C
   is the fallback, never B.
 
-**Answer** (2026-10-09): pending the operator's confirmation.
+**Answer** (2026-10-09): **A confirmed** by the operator after the VPS choice.
