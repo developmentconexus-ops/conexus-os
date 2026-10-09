@@ -25,6 +25,13 @@ The operator's question of 2026-10-09, in short:
 
 Research, not execution authority. Decisions go to the operator (section 9).
 
+**Answered (2026-10-09):**
+- a Hostinger VPS KVM 2 in São Paulo, not Lightsail (9.2);
+- Neon, starting on the Free plan (9.1);
+- provider independence (9.9).
+
+The [target design](../architecture/target-design.md) puts them together.
+
 ## 1. Short answer
 
 **At four companies the place costs little; what it decides is reliability and the operator's

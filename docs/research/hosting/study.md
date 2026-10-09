@@ -1,6 +1,16 @@
 # Study: hosting and tenancy, putting Conexus online for several companies
 
 **Date**: 2026-10-09
+
+**Superseded in part (2026-10-09):** the target shape here (a cell per company, Keycloak in production mode,
+the bubblewrap runner on one VM) is replaced by the [target design](../architecture/target-design.md):
+- one shared installation (tenancy O1);
+- Better Auth (A2);
+- Workers for Platforms (A1);
+- a Hostinger VPS with Neon ([deployment](../deployment/study.md) 9.1, 9.2).
+
+The census and the spikes below stand as evidence of the code on that date.
+
 **Base**: `main` at `729bdc5`
 **Earlier studies used**: [Mitra](../mitra/index.md). This study corrects it in four places, from the
 code of the two Mitra SDKs (section 4): MySQL, the "Docker container per project", the

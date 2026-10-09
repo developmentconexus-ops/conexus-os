@@ -534,7 +534,7 @@ mensalidade mínima).
 | 14 | Servidor | VPS Hostinger KVM 2 em São Paulo, um mês de teste e depois 12 meses | ✅ | B1, deployment 9.2 |
 | 15 | Banco | Neon São Paulo, começando no grátis | ✅ | B2, deployment 9.1 |
 | 16 | Bancos das empresas | No mesmo projeto Neon, por enquanto | 🟡 | B3, deployment 9.6 |
-| 17 | Armazenamento de arquivos e backups | R2 | 🟡 | B4 |
+| 17 | Armazenamento de arquivos e backups | R2, com backups cifrados pela chave pública do operador; Magalu Object Storage se precisar ficar no Brasil | 🟡 | B4, §11 |
 | 18 | DNS, HTTPS, túnel | Cloudflare; domínio registrado na Hostinger, DNS na Cloudflare | 🟡 | B5 |
 | 19 | **Formato dos endereços** | Hub em `hub.<domínio>`; apps num **segundo domínio** (`<app>-<empresa>.<domínio-dos-apps>`): isola os cookies e cabe no certificado grátis, que cobre só um nível de subdomínio | 🟡 novo | hosting 9.6 |
 | 20 | E-mail | Resend grátis | 🟡 | B6 |
@@ -619,9 +619,15 @@ Separei o que foi demonstrado do que é risco.
 - **LGPD:** os dados das empresas ficam em São Paulo, mas E2B, provedores de modelo, Resend e
   Cloudflare processam dados fora do Brasil. Para isso o art. 33 pede uma base, como as cláusulas
   padrão da Resolução CD/ANPD 19/2024. Isso é leitura do estudo, não parecer jurídico.
-- **O R2 não tem localização na América do Sul** (não verificado neste estudo), então os backups
-  noturnos ficariam fora do Brasil. A alternativa é um armazenamento S3 em São Paulo; a regra de
-  independência deixa a troca simples.
+- **Os backups no R2 provavelmente ficam nos EUA.** A Cloudflare não publica uma localização na
+  América do Sul para o R2. A própria documentação dela manda usar a dica `enam` (leste da América do
+  Norte) para dados em São Paulo
+  ([R2 e Snowflake](https://developers.cloudflare.com/r2/reference/partners/snowflake-regions/)).
+  - Duráveis e D1 também não ficam na América do Sul.
+  - **Recomendação:** cifrar os backups antes de enviar, com a chave **pública** do operador; a
+    chave privada fica fora da VPS. Assim, nem uma VPS invadida lê backups antigos.
+  - Se a empresa exigir dados só no Brasil, o Magalu Object Storage é S3 em São Paulo (cerca de
+    R$0,10 por GiB, preço de terceiros), e a regra de independência deixa a troca simples.
 
 **Não medido ainda:**
 - a latência VPS ↔ Neon e Cloudflare ↔ VPS;

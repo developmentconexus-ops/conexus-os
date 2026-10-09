@@ -275,6 +275,9 @@ Each enters only with a company that needs it. The usual answer is O3 for that c
 
 ## 10. The flow from end to end
 
+> **Superseded (2026-10-09):** this flow still uses Keycloak and the runner. The current flows are F1
+> to F8 of the [target design](../architecture/target-design.md).
+
 Who does what, from a new company to an employee using its app.
 - The operator is the installation administrator.
 - *Built* means the code exists on `main` or a wave branch today.

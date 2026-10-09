@@ -1,6 +1,17 @@
 # Study: the database architecture, simpler and cheaper for several companies
 
 **Date**: 2026-10-09
+
+**Superseded in part (2026-10-09):**
+- **Still holds:** the unit of data, a database per company with a schema per app (9.1).
+- **Replaced by later decisions:**
+  - Keycloak in production mode is replaced by Better Auth (A2).
+  - "Neon, Supabase or any managed engine" staying out is replaced by Neon. Its premise was that the
+    Hub chain needs a superuser; the greenfield baseline needs none (deployment spikes P0 to P4).
+  - Certificate login through the runner's relay is replaced by a login per app through the data
+    service (app runtime 9.3, §11).
+- See the [target design](../architecture/target-design.md).
+
 **Base**: `main` at `729bdc5`, and `wave/company-model-accounts-spec` at `7a202a3`, the most advanced
 wave branch. It carries the Hub migrations `0071` to `0076`, including spec 0018's `0072` to `0074`.
 **Earlier studies used**:
