@@ -3,6 +3,7 @@
 # Run from the repository root: bash docs/research/database/spike.sh [apps]
 # Every container it starts is named spike-database and removed at the end.
 set -uo pipefail
+cd "$(git rev-parse --show-toplevel)"
 N=${1:-100}
 PG='postgres:17.10-bookworm@sha256:9b18b78397054fce88a9552e9d5a3ad5bb7fd258c5b3cc1c5028e46373d6ea8f'
 trap 'docker rm -f spike-database >/dev/null 2>&1' EXIT
@@ -16,6 +17,19 @@ app_ddl() { # a small generated app: two tables, a key, an index
   echo "create index on $1.purchase_note (order_number);"
 }
 mb() { awk '{printf "%.1f MB", $1/1048576}'; }
+
+echo 'S0 the Hub catalog this checkout migrates to (needs npm ci)'
+P -c 'create database hub'
+url=$(mktemp); trap 'docker rm -f spike-database >/dev/null 2>&1; rm -f "$url"' EXIT
+ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' spike-database)
+printf 'postgresql://postgres:spike-only@%s:5432/hub\n' "$ip" > "$url"; chmod 600 "$url"
+CONEXUS_MIGRATION_DATABASE_URL_FILE="$url" node scripts/run-hub-migrations.mjs 2>&1 | grep -oE '"verdict":"PASS"|^error: .*' | head -1 | sed 's/^/  /'
+P -d hub -c "select '  tables ' || (select count(*) from pg_tables where schemaname !~ '^(pg_|information_schema)')
+  || ', row policies ' || (select count(*) from pg_policies)
+  || ', tables with row security ' || (select count(*) from pg_class where relrowsecurity)
+  || ', functions ' || (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname !~ '^(pg_|information_schema)')
+  || ', roles ' || (select count(*) from pg_roles where rolname !~ '^pg_' and rolname <> 'postgres')
+  || ', size ' || pg_size_pretty(pg_database_size('hub'))"
 
 echo "S9 the cost of $N apps as schemas in one database, against $N apps as databases"
 P -c 'create database schemas'
