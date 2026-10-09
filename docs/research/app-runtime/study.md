@@ -473,3 +473,64 @@ address.
 - The hop from a São Paulo point of presence to a São Paulo origin.
 - The data service under load.
 - A pool per app at 3,000 apps (expected: bounded by active apps).
+
+## 12. Re-checked after the VPS choice: is Workers for Platforms still right?
+
+Decision 1 was taken before the host was chosen. The operator then chose one Hostinger VPS in
+São Paulo with root access (deployment 9.2), and asked on 2026-10-09 whether the app runtime is
+still coherent. A VPS with its own kernel removes the original objection to running generated code
+ourselves: user namespaces work there, so today's bubblewrap runner, or the isolated-vm executor,
+could run beside the Hub.
+
+### What changes with a single VPS
+
+The VPS holds every secret of every company. The deployment census lists nine secret files
+(E2, `bash docs/research/deployment/census.sh`). The two that matter most here:
+- the sealing key that opens every company's ERP credentials and model keys
+  (`CONEXUS_FACTORY_SECRET_KEY_FILE`);
+- the database passwords.
+
+The target adds three more to the same machine:
+- the provider's admin login (the provisioner);
+- every app's login;
+- the Cloudflare token.
+
+So an escape from a sandbox on that VPS reaches all companies at once. The guide treats generated
+code "like code from the internet"
+([security §8](../../reference/security-and-authority.md#8-untrusted-code)), and the references
+agree that a V8 isolate needs an outer layer that someone keeps patched (section 4).
+
+### The options, with a VPS
+
+| | A. Workers for Platforms (decided) | B. On the same VPS: bubblewrap or isolated-vm | C. On a second, small VPS only for apps | D. B now, A later |
+| --- | --- | --- | --- | --- |
+| A sandbox escape reaches | Cloudflare's own layers; none of our secrets | **every company's keys and data** | the app logins only; the Hub's keys stay on the first VPS | as B, until moved |
+| Who patches the outer layer | Cloudflare ("a V8 patch gap under 24 hours", section 4) | us: the kernel, Node or V8, the sandbox | us, on two machines | us, then Cloudflare |
+| CPU limit per call | `cpuMs`, set by the dispatcher | ours (process kill, isolate timeout) | ours | ours, then `cpuMs` |
+| App files, hosts, TLS | included at the edge | the Hub or a proxy behind Cloudflare | the same | the same, then included |
+| Monthly cost | about R$125–150 (US$25, plus US$5 if Workers Paid is required) | R$0 | about R$30–60 (a KVM 1) | R$0, then A |
+| New code | the dispatch Worker, the upload, the outbound Worker, signed call tokens, the data service over the tunnel | the runner exists (1,902 lines), but its relay and certificate login must become data-service calls | B plus a second machine | **both**, one after the other |
+| Latency of a `db.query` | one extra hop from the edge to the VPS, both in São Paulo (not measured) | local | local | local, then the hop |
+| Lock-in | Cloudflare; the way out is the isolated-vm adapter (decision 2) | none | none | none, then A's |
+
+### Verdict
+
+**Workers for Platforms still holds, and the single VPS makes the case stronger, not weaker.**
+- **Trust domains:** the VPS is the trusted domain, with the platform's code and every secret.
+  Cloudflare runs the untrusted domain, the generated code, with no secret at all. B puts both on
+  one machine.
+- **What the price buys:** about R$150 a month means nobody at Conexus has to patch a sandbox. The
+  edge hosting, TLS and per-call CPU limit come with it.
+- **C is the only self-hosted option that keeps the domains apart.** It costs less, but it doubles
+  the machines to operate and still leaves the patching to us.
+- **D builds the runtime twice.**
+- **The isolated-vm executor is still built,** as the local adapter for development and as the
+  tested way out (decision 2). It is not a production path on the Hub's machine.
+
+**What would reopen this:**
+- Cloudflare raising the price beyond what one more small VPS costs;
+- a measured latency from the edge hop that hurts real apps;
+- Cloudflare for Startups credits being refused, while budget is the binding constraint. Then C
+  is the fallback, never B.
+
+**Answer** (2026-10-09): pending the operator's confirmation.
