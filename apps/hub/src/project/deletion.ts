@@ -1,12 +1,15 @@
+import { createProject } from '@conexus/contract'
+import type { builderProjectPorts } from '../builder/public.js'
+import { deleteResourceReceipts } from '../platform/receipt.js'
 import { z } from 'zod'
 import { WorkspaceId, type AccountId, type ProjectId as ProjectIdType } from '@conexus/contract'
-import { OPEN_RUN_STATES } from '../generated/builder-run-vocabulary.js'
 import { admitProject, admitSystem, type Admitted, type SystemScope } from '../identity-access/public.js'
 import type { Database, WriteTx } from '../platform/db.js'
 import { sql } from '../platform/db.js'
 import { Failure } from '../platform/failure.js'
 
 export type ProjectDeletionPorts = Readonly<{
+  hasOpenProjectRun: typeof builderProjectPorts.hasOpenProjectRun
   releaseApplicationData(projectId: ProjectIdType, lost: AbortSignal): Promise<void>
   killSandboxes(projectId: ProjectIdType, lost: AbortSignal): Promise<void>
   deleteRepository(projectId: ProjectIdType, lost: AbortSignal): Promise<void>
@@ -29,8 +32,7 @@ const Present = z.object({ present: z.literal(1) })
 const tombstoneOf = (tx: WriteTx, projectId: ProjectIdType) => tx.maybe(Tombstone, sql`
   SELECT name, completed_at FROM project.project_deletion WHERE project_id = ${projectId}`)
 
-const busy = async (tx: WriteTx, projectId: ProjectIdType): Promise<boolean> => (await tx.maybe(Present, sql`
-  SELECT 1 AS present FROM builder.builder_run WHERE project_id = ${projectId} AND state = ANY(${OPEN_RUN_STATES}::text[]) LIMIT 1`)) !== null
+
 
 const settled = (tombstone: z.output<typeof Tombstone>, confirmName: string): Readonly<{ completed: boolean }> => {
   if (tombstone.name !== confirmName) throw new Failure('PROJECT_NAME_MISMATCH')
@@ -40,13 +42,14 @@ const settled = (tombstone: z.output<typeof Tombstone>, confirmName: string): Re
 export function createProjectDeletion({ database, ports }: Readonly<{ database: Database; ports: ProjectDeletionPorts }>) {
   // The owner's command locks its account and membership before the Project row.
   const begin = ({ accountId, projectId, confirmName }: DeleteProjectInput) => database.transaction(accountId, async (gate) => {
-    const { tx, scope } = await admitProject(gate, { projectId, action: 'project.delete' })
+    const proof = await admitProject(gate, { projectId, action: 'project.delete' })
+    const { tx, scope } = proof
     const target = await tx.maybe(Target, sql`SELECT workspace_id, name FROM project.project WHERE project_id = ${projectId} FOR UPDATE`)
     const concurrent = await tombstoneOf(tx, projectId)
     if (concurrent) return settled(concurrent, confirmName)
     if (!target) throw new Failure('PROJECT_NOT_FOUND')
     if (target.name !== confirmName) throw new Failure('PROJECT_NAME_MISMATCH')
-    if (await busy(tx, projectId)) throw new Failure('PROJECT_BUSY')
+    if (await ports.hasOpenProjectRun(proof, projectId)) throw new Failure('PROJECT_BUSY')
     const written = await tx.run(sql`
       INSERT INTO project.project_deletion (project_id, workspace_id, name, requested_by)
       SELECT project_id, workspace_id, name, ${scope.accountId}::uuid FROM project.project WHERE project_id = ${projectId}`)
@@ -62,12 +65,12 @@ export function createProjectDeletion({ database, ports }: Readonly<{ database: 
     if (deletion?.completed_at) return
     if (!target) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'PROJECT_DELETION_STRANDED' } })
     if (!deletion) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'PROJECT_DELETION_NOT_STARTED' } })
-    if (await busy(tx, projectId)) throw new Failure('PROJECT_BUSY')
+    if (await ports.hasOpenProjectRun(proof, projectId)) throw new Failure('PROJECT_BUSY')
     await ports.purgeIdentityAccess(proof, projectId)
     await ports.purgeConnectorBindings(proof, projectId)
     await ports.purgeRegistry(proof, projectId)
     await ports.purgeBuilder(proof, projectId)
-    await tx.run(sql`DELETE FROM platform.operation_receipt WHERE operation_id = 'createProject' AND resource_id = ${projectId}`)
+    await deleteResourceReceipts(tx, createProject, projectId)
     await tx.run(sql`DELETE FROM project.project WHERE project_id = ${projectId}`)
     await tx.run(sql`UPDATE project.project_deletion SET purged_at = clock_timestamp(), completed_at = clock_timestamp() WHERE project_id = ${projectId}`)
   }

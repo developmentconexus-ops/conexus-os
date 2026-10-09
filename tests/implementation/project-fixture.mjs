@@ -58,7 +58,7 @@ export const setupProjects = async (t, prefix, { repository } = {}) => {
     purgeIdentityAccess: purgeProject,
     purgeConnectorBindings: purgeProjectBindings,
     purgeRegistry: createRegistryModule({ database }).purge,
-    purgeBuilder: purgeProjectBuilder,
+    hasOpenProjectRun: builderProjectPorts.hasOpenProjectRun, purgeBuilder: purgeProjectBuilder,
   }
   const repositoryPort = repository ?? { prepare: async () => STARTER }
   const store = createProjectStore({ database, repository: repositoryPort, deletion: ports, builder: builderProjectPorts })

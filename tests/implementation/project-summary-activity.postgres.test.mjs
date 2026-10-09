@@ -42,3 +42,41 @@ test('a deleting project card exposes only the identity and state', async (t) =>
   await assert.rejects(cardsOf(ID.administrator), { id: 'WORKSPACE_NOT_FOUND' })
   await assert.rejects(cardsOf(ID.outsider), { id: 'WORKSPACE_NOT_FOUND' })
 })
+
+test('Project and Builder activity share one snapshot across owner reads', async (t) => {
+  const { default: pg } = await import('pg')
+  const { connection, store } = await setupProjects(t, 'conexus_prj_cards_snapshot')
+  const projectId = randomUUID()
+  await insertProject(connection, projectId, ID.workspace, 'Snapshot', '2026-01-01T00:00:00Z')
+  const original = pg.Client.prototype.query
+  let changed = false
+  pg.Client.prototype.query = async function (...args) {
+    const text = typeof args[0] === 'string' ? args[0] : args[0]?.text
+    if (!changed && /FROM unnest/.test(text ?? '')) {
+      changed = true
+      await insertRun(connection, projectId, 'RUNNING', null, '2026-02-01T00:00:00Z')
+      await query(connection, 'UPDATE project.project SET archived = true WHERE project_id = $1', [projectId])
+    }
+    return original.apply(this, args)
+  }
+  try {
+    assert.deepEqual(await store.listProjectSummariesWithActivity({ accountId: ID.member, workspaceId: ID.workspace }), [
+      { projectId, name: 'Snapshot', state: 'live', archived: false, lastActivityAt: '2026-01-01T00:00:00.000Z', latestRun: null, hasPreview: false },
+    ])
+    assert.equal(changed, true)
+  } finally {
+    pg.Client.prototype.query = original
+  }
+  const [fresh] = await store.listProjectSummariesWithActivity({ accountId: ID.member, workspaceId: ID.workspace })
+  assert.equal(fresh.archived, true)
+  assert.deepEqual(fresh.latestRun, { state: 'RUNNING', resultKind: null })
+})
+
+test('activity coalesces to a present latest run even when Project creation is later', async (t) => {
+  const { connection, store } = await setupProjects(t, 'conexus_prj_cards_coalesce')
+  const projectId = randomUUID()
+  await insertProject(connection, projectId, ID.workspace, 'Imported', '2026-02-01T00:00:00Z')
+  await insertRun(connection, projectId, 'RUNNING', null, '2026-01-01T00:00:00.000999Z')
+  const [card] = await store.listProjectSummariesWithActivity({ accountId: ID.member, workspaceId: ID.workspace })
+  assert.equal(card.lastActivityAt, '2026-01-01T00:00:00.000Z')
+})

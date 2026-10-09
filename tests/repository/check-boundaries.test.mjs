@@ -96,7 +96,7 @@ test('the rules of the real register name the modules that may write the authori
     ['iam.*', 'INSERT/UPDATE/DELETE', 'apps/hub/src/identity-access/'],
     ['project.project_deletion', 'INSERT/UPDATE/DELETE', 'apps/hub/src/project/deletion.ts'],
     ['project.project', 'DELETE', 'apps/hub/src/project/deletion.ts'],
-    ['platform.operation_receipt', 'DELETE', 'apps/hub/src/project/deletion.ts apps/hub/src/platform/receipt.ts'],
+    ['platform.operation_receipt', 'DELETE', 'apps/hub/src/platform/receipt.ts'],
   ])
 })
 

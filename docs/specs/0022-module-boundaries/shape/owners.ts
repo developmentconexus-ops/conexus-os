@@ -16,6 +16,7 @@ export type ProjectActivity = Readonly<{
   projectId: ProjectId
   latestRun: Extract<ProjectCard, { state: 'live' }>['latestRun']
   createdAt: Date | null
+  sortAt: bigint | null
   hasPreview: Extract<ProjectCard, { state: 'live' }>['hasPreview']
 }>
 export type BuilderReads = Readonly<{

@@ -187,3 +187,14 @@ openProjectCondition(reader)
 openProjectCondition(positiveChecked, project)
 // @ts-expect-error A system executor proof is not Project/application access.
 openProjectCondition(await admitSystem(gate, 'builder-executor'))
+
+import { builderProjectPorts } from '../../apps/hub/src/builder/public.js'
+import { readMemberWorkspaceIds } from '../../apps/hub/src/identity-access/public.js'
+// @ts-expect-error Only admitted Workspace reads select activity.
+builderProjectPorts.readProjectActivity(owner, [project])
+// @ts-expect-error Workspace ids are not Project ids in an activity batch.
+builderProjectPorts.readProjectActivity(reader, [workspace])
+// @ts-expect-error A read proof cannot decide a Project deletion's busy state.
+builderProjectPorts.hasOpenProjectRun(reader, project)
+// @ts-expect-error Membership reads take a read account admission.
+readMemberWorkspaceIds(accountProof)

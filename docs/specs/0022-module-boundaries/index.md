@@ -306,3 +306,5 @@ This inventory supplements the unit action tables. A file may move more than one
 | `tests/repository/import-law.test.mjs` | U2, U3 | Migrate valid entry fixtures; preserve deliberate violation fixtures and their named refusal checks. |
 
 U4 technical correction accepted by Firstmate on 2026-10-09: a paired real-store race passes at Batch A and fails when broker Project eligibility is read in a preceding Boolean query. Application checks hold no Project lock under READ COMMITTED. The owner predicate must remain in the final binding/credential statement; no isolation, authority or lock change is authorized. Permanent archive/deletion races cover both readers.
+
+U5 precision correction: owner activity carries exact epoch microseconds as `bigint` separately from the Date used for millisecond wire formatting. Project preserves `coalesce(latest.created_at, stored.created_at)`, descending run/id selection and ascending Project-id ties inside its existing repeatable-read snapshot. Row-boundary latest-run variant negatives move to Builder with the query; no invalid history fixture is weakened.

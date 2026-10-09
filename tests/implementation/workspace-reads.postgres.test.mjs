@@ -52,3 +52,31 @@ test('IAM-01 lists only active memberships through the workspace policy', async 
   await query(fixture.connection, 'DELETE FROM iam.workspace_membership WHERE account_id = $1 AND workspace_id = $2', [ACCOUNT, WORKSPACE])
   assert.deepEqual(await store.listAccessibleWorkspaces(ACCOUNT), [])
 })
+
+test('membership ids and Workspace names share the account read snapshot', async (t) => {
+  const { default: pg } = await import('pg')
+  const { setupProjects, ID } = await import('./project-fixture.mjs')
+  const { connection, database } = await setupProjects(t, 'conexus_workspace_snapshot')
+  const module = createWorkspaceModule({ database })
+  const original = pg.Client.prototype.query
+  let changed = false
+  pg.Client.prototype.query = async function (...args) {
+    const text = typeof args[0] === 'string' ? args[0] : args[0]?.text
+    if (!changed && /SELECT stored\.workspace_id, stored\.name FROM workspace\.workspace/.test(text ?? '')) {
+      changed = true
+      await query(connection, 'DELETE FROM iam.workspace_membership WHERE account_id = $1', [ID.member])
+      await query(connection, "UPDATE workspace.workspace SET name = 'Renamed' WHERE workspace_id = $1", [ID.workspace])
+    }
+    return original.apply(this, args)
+  }
+  try {
+    assert.deepEqual(await module.listAccessibleWorkspaces(ID.member), [{ workspaceId: ID.workspace, name: 'Operations' }])
+    assert.equal(changed, true)
+  } finally {
+    pg.Client.prototype.query = original
+  }
+  assert.deepEqual(await module.listAccessibleWorkspaces(ID.member), [])
+  assert.deepEqual(await module.listAccessibleWorkspaces(ID.administrator), [
+    { workspaceId: ID.otherWorkspace, name: 'Elsewhere' }, { workspaceId: ID.workspace, name: 'Renamed' },
+  ])
+})

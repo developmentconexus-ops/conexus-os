@@ -3,3 +3,4 @@ export type { AccountScope, Admitted, ApplicationScope, Checked, ProjectScope, R
 export type { CurrentSession, HubSession, HubSessionDigest } from './current-session.js'
 export { ApplicationSlug, applicationSlugOfHost } from './application-slug.js'
 export type { HostOutcome, HostRequest, ScopedProof } from './host-outcome.js'
+export { readMemberWorkspaceIds } from './membership-reads.js'

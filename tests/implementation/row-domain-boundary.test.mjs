@@ -2,8 +2,9 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { hubModuleUrl } from './hub-build.mjs'
 
+const { ActivityRow } = await import(hubModuleUrl('builder/project-activity-row.js'))
 const { RunRow } = await import(hubModuleUrl('builder/run-row.js'))
-const { CardRow, DetailRow, ListRow } = await import(hubModuleUrl('project/rows.js'))
+const { SummaryRow, DetailRow, ListRow } = await import(hubModuleUrl('project/rows.js'))
 const id = '11111111-1111-4111-8111-111111111111'
 const projectId = '22222222-2222-4222-8222-222222222222'
 const conversationId = '33333333-3333-4333-8333-333333333333'
@@ -54,7 +55,7 @@ test('legal run variants retain the exact public summary payload at the database
 })
 
 const project = { project_id: projectId, workspace_id: id, name: 'Notebook' }
-const card = { ...project, state: 'live', archived: false, last_activity_at: createdAt, has_preview: true }
+const card = { project_id: projectId, latest_run: null, created_at: null, sort_at: null, has_preview: true }
 
 test('Project database boundaries keep current live and deleting list, detail and activity payloads', () => {
   const identity = { projectId, workspaceId: id, name: 'Notebook' }
@@ -63,11 +64,11 @@ test('Project database boundaries keep current live and deleting list, detail an
   for (const schema of [ListRow, DetailRow]) {
     assert.deepEqual(schema.parse({ ...project, state: 'deleting', archived: null, project_revision: null }), { ...identity, state: 'deleting' })
   }
-  assert.deepEqual(CardRow.parse({ ...card, run_state: null, run_result_kind: null }), { projectId, name: 'Notebook', state: 'live', archived: false, lastActivityAt: createdAt, latestRun: null, hasPreview: true })
+  assert.deepEqual(ActivityRow.parse(card), { projectId, latestRun: null, createdAt: null, sortAt: null, hasPreview: true })
   for (const ending of endings) {
-    assert.deepEqual(CardRow.parse({ ...card, run_state: ending.state, run_result_kind: ending.resultKind }), { projectId, name: 'Notebook', state: 'live', archived: false, lastActivityAt: createdAt, latestRun: { state: ending.state, resultKind: ending.resultKind }, hasPreview: true })
+    assert.deepEqual(ActivityRow.parse({ ...card, latest_run: { state: ending.state, resultKind: ending.resultKind }, created_at: new Date(createdAt), sort_at: '1767225600000001' }), { projectId, latestRun: { state: ending.state, resultKind: ending.resultKind }, createdAt: new Date(createdAt), sortAt: 1767225600000001n, hasPreview: true })
   }
-  assert.deepEqual(CardRow.parse({ ...card, state: 'deleting', archived: null, run_state: null, run_result_kind: null }), { projectId, name: 'Notebook', state: 'deleting' })
+  assert.deepEqual(SummaryRow.parse({ ...project, state: 'deleting', archived: null, created_at: new Date(createdAt), sort_at: '1767225600000001' }), { project_id: projectId, name: 'Notebook', state: 'deleting', created_at: new Date(createdAt), sort_at: 1767225600000001n })
 })
 
 test('Project activity rejects unknown vocabulary and impossible latest run variants at the boundary', () => {
@@ -75,7 +76,7 @@ test('Project activity rejects unknown vocabulary and impossible latest run vari
     ['UNKNOWN', null], ['RUNNING', 'UNKNOWN'], ['SUCCEEDED', null],
     ['QUEUED', 'SOURCE_CHANGED'], ['FAILED', 'RESPONSE_ONLY'], [null, 'SOURCE_CHANGED'],
   ]) {
-    assert.equal(CardRow.safeParse({ ...card, run_state: state, run_result_kind: resultKind }).success, false)
+    assert.equal(ActivityRow.safeParse({ ...card, latest_run: { state, resultKind }, created_at: new Date(createdAt), sort_at: '1767225600000001' }).success, false)
   }
   assert.equal(ListRow.safeParse({ ...project, state: 'live', archived: null }).success, false)
   assert.equal(DetailRow.safeParse({ ...project, state: 'live', archived: false, project_revision: 'invalid' }).success, false)

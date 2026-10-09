@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { WorkspaceId, WorkspaceName, createWorkspace, type AccountId, type Input, type Reply } from '@conexus/contract'
-import { admitAccount, grantCreatorMembership, readAdministratorFlag, receiptOf } from '../identity-access/public.js'
+import { admitAccount, readMemberWorkspaceIds, grantCreatorMembership, readAdministratorFlag, receiptOf } from '../identity-access/public.js'
 import type { Database } from '../platform/db.js'
 import { sql } from '../platform/db.js'
 import { idempotent } from '../platform/receipt.js'
@@ -21,10 +21,10 @@ export const createWorkspaceStore = (database: Database): WorkspaceStore => Obje
     if (await readAdministratorFlag(proof)) {
       return proof.tx.rows(WorkspaceRow, sql`SELECT workspace_id, name FROM workspace.workspace ORDER BY name, workspace_id`)
     }
+    const workspaceIds = await readMemberWorkspaceIds(proof)
     return proof.tx.rows(WorkspaceRow, sql`
         SELECT stored.workspace_id, stored.name FROM workspace.workspace AS stored
-        JOIN iam.workspace_membership AS membership ON membership.workspace_id = stored.workspace_id
-        WHERE membership.account_id = ${proof.scope.accountId}
+        WHERE stored.workspace_id = ANY(${workspaceIds}::uuid[])
         ORDER BY stored.name, stored.workspace_id`)
   }),
   createWorkspace: ({ accountId, idempotencyKey, body }) => database.transaction(accountId, async (gate) => {

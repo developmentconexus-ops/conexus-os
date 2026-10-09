@@ -383,6 +383,8 @@ pull request that fixes one deletes its line.
 
 | Departure or risk | Wave |
 | --- | --- |
+| `registry/served.ts#pointerStatement` reads Builder working state for the current pointer; move Preview/Published pointers together with readers, writers, grants and settlement | Q5, finding 0005 |
+| `registry/retain.ts#retain` reads the held Builder run/source/owner; replace only with a proved owner run-source/settlement contract preserving crash/race guarantees | Builder, finding 0006 |
 | The sandbox keepalive in `builder/sandbox.ts` and the sign-in expiry in `model-account/google-ai-pro/login.ts` run their own timers, outside `platform/jobs.ts` | Hub base, after S1 |
 | The model routes keep verb segments (`/oauth/start`, `/login/complete`), the Google sign-in status is a `POST` named for a read, and the three `start` `POST`s take no `Idempotency-Key` | Hub base, after S1 |
 | `createWorkspaceConnection` and `bindProjectConnection` take no `Idempotency-Key` and deduplicate by domain identity (`connectionId`, the binding name) | Hub base, after S1 |

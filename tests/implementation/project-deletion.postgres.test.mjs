@@ -10,7 +10,7 @@ import { seedRevision, seedRevisionThumbnail } from './registry-fixture.mjs'
 
 const { admitAccount, admitProject, readAdministratorFlag } = await import(hubModuleUrl('identity-access/admission.js'))
 const { createBuilderStore } = await import(hubModuleUrl('builder/store.js'))
-const { purgeProjectBuilder } = await import(hubModuleUrl('builder/project-ports.js'))
+const { builderProjectPorts, purgeProjectBuilder } = await import(hubModuleUrl('builder/project-ports.js'))
 const digest = (character) => character.repeat(64)
 const remove = (store, accountId, projectId, confirmName = 'Atlas') => store.deleteProject({ accountId, projectId, confirmName })
 const tombstones = async (connection) => (await query(connection, 'SELECT project_id, name, requested_by, purged_at IS NOT NULL AS purged, completed_at IS NOT NULL AS completed FROM project.project_deletion')).rows
@@ -98,7 +98,7 @@ test('required cleanup failure keeps the Project open, and a finalization rollba
   const { createRegistryModule } = await import(hubModuleUrl('registry/module.js'))
   const { purgeProjectBindings } = await import(hubModuleUrl('connectors/store.js'))
   const { purgeProject } = await import(hubModuleUrl('identity-access/application-access.js'))
-  const ports = { releaseApplicationData: async () => undefined, killSandboxes: async () => undefined, deleteRepository: async () => { if (failing.repository++ === 0) throw new Error('GITHUB_DOWN') }, purgeIdentityAccess: purgeProject, purgeConnectorBindings: purgeProjectBindings, purgeRegistry: (proof, id) => { if (failing.registry++ === 0) throw new Error('REGISTRY_DOWN'); return registry.purge(proof, id) }, purgeBuilder: purgeProjectBuilder }
+  const ports = { releaseApplicationData: async () => undefined, killSandboxes: async () => undefined, deleteRepository: async () => { if (failing.repository++ === 0) throw new Error('GITHUB_DOWN') }, purgeIdentityAccess: purgeProject, purgeConnectorBindings: purgeProjectBindings, purgeRegistry: (proof, id) => { if (failing.registry++ === 0) throw new Error('REGISTRY_DOWN'); return registry.purge(proof, id) }, hasOpenProjectRun: builderProjectPorts.hasOpenProjectRun, purgeBuilder: purgeProjectBuilder }
   const registry = createRegistryModule({ database })
   const deletion = createProjectDeletion({ database, ports })
   const projectId = await seedProject('Atlas')

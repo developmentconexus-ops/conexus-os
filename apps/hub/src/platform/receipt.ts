@@ -2,6 +2,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import { canonicalBytes } from '../../../../packages/canonical-json/src/index.mjs'
 import type { AccountId, IdempotencyKey, Input, JsonOperation, Reply, WorkspaceId } from '@conexus/contract'
+import type { ProjectId } from '@conexus/contract'
 import type { WriteTx } from './db.js'
 import { sql } from './db.js'
 import { Failure } from './failure.js'
@@ -119,4 +120,8 @@ export const idempotent = async <O extends JsonOperation, I extends z.ZodType<st
   const reply = await run(receipt.resourceId)
   await complete(proof, op, key, input, receipt.resourceId, reply)
   return { replayed: false, reply }
+}
+
+export async function deleteResourceReceipts(tx: WriteTx, operation: typeof import('@conexus/contract').createProject, resourceId: ProjectId): Promise<void> {
+  await tx.run(sql`DELETE FROM platform.operation_receipt WHERE operation_id = ${operation.id} AND resource_id = ${resourceId}`)
 }

@@ -13,7 +13,7 @@ export const HUB_OWNERS = Object.freeze({
   connectors: { entries: [], dependencies: ['identity-access', 'project'] },
   hosting: { entries: ['public.ts'], dependencies: ['identity-access'] },
   'model-account': { entries: ['module.ts'], dependencies: ['identity-access'] },
-  project: { entries: ['public.ts'], dependencies: ['identity-access'] },
+  project: { entries: ['public.ts'], dependencies: ['identity-access', 'builder'] },
   registry: { entries: ['public.ts'], dependencies: ['identity-access'] },
   telemetry: { entries: [], dependencies: [] },
   workspace: { entries: [], dependencies: ['identity-access'] },

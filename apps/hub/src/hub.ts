@@ -97,7 +97,7 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
       purgeIdentityAccess: identityAccess.purgeProject,
       purgeConnectorBindings: connectors.purgeProjectBindings,
       purgeRegistry: registry.purge,
-      purgeBuilder: purgeProjectBuilder,
+      hasOpenProjectRun: builderProjectPorts.hasOpenProjectRun, purgeBuilder: purgeProjectBuilder,
     },
     thumbnailReader: registry,
   })
