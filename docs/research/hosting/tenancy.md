@@ -26,7 +26,7 @@ intuition, not a requirement, so it is a decision here too.
   3. Is there already a unit that behaves like a company? **Yes, the Workspace.**
      - 17 of the 27 Hub tables are scoped by Workspace or Project (census below).
      - PostgreSQL row security, not only TypeScript, keeps one Workspace's reads out of another's
-       (S7).
+       on `main` (S7). Spec 0018 removes it; see section 11.
   4. What crosses Workspaces today? A short list: shared model accounts (S8), the model default, the
      operations only the installation administrator may perform, one sealing key, one Applications
      cluster, one Hub process, one Keycloak realm (section 3).
@@ -146,7 +146,8 @@ company with several Workspaces.**
 1. **Cheapest in money**: one small VM for the first 5 to 20 companies, or Oracle Always Free.
 2. **Cheapest in operations**, the cost that matters most to a founder without DevOps: one thing to
    deploy, migrate, back up and watch.
-3. **Strongest read isolation among the shared references**, proved in S7.
+3. **Strongest read isolation among the shared references**, proved in S7 on `main`. After spec
+   0018 it is typed admission in TypeScript instead; section 11 names the backstops.
 4. **The work is shared.** The base (addresses, Keycloak in production mode, one image, off-host
    backup, rate limit and brute-force protection) is needed by every option. O3 later reuses all of
    it.
@@ -237,16 +238,120 @@ Each enters only with a company that needs it. The usual answer is O3 for that c
 
 1. **Tenancy for validation.** Options O1, O2, O3. Recommendation: **O1**, for the reasons in
    section 7.
-   **Answer**: pending.
+   **Answer** (2026-10-09): O1. A Workspace is a company.
 2. **Who provides the models.**
    - Options:
      - A: each person or company brings its own model account, with the Workspace sharing of C1.
      - B: the operator provides one through the installation default (C2) and absorbs its cost.
    - Recommendation: **A, with B allowed for a trial period**, because model cost is the one cost
      that grows per use.
-   - **Answer**: pending.
+   - **Answer** (2026-10-09): A, and wider. Every configuration and every account a company holds
+     belongs to its Workspace: model accounts, the model default, connections and settings. No
+     account or default is installation-wide.
+   - Consequence: spec 0017 (company model accounts, in build on
+     `wave/company-model-accounts-spec`, migration `0071`) creates a `scope = 'installation'` account,
+     one per provider for the whole installation. That scope becomes the Workspace: a
+     `workspace_id` on the company account, and its unique index per Workspace and provider. This is
+     an input to that wave before it goes further.
 3. **Onboarding.** Options a, b, c of section 7. Recommendation: **a now, b next**.
-   **Answer**: pending.
+   **Answer**: the operator asked for the end-to-end flow first (section 10). Pending.
 4. **Amend C-024 and re-accept C-037 for a validation installation.** Recommendation: **yes**, with
    the boundary text in section 8.
-   **Answer**: pending.
+   **Answer** (2026-10-09): yes. C-024 and C-037 are amended in the
+   [decision register](../../decisions/index.md).
+5. **Who may create a Workspace, now that a Workspace is a company.**
+   - Today any signed-in account may (`apps/hub/src/workspace/routes.ts:16`, `admitAccount`), so a
+     member could open a second "company".
+   - Recommendation: **only the installation administrator creates a Workspace**; its first owner is
+     invited by email.
+   - **Answer**: pending.
+6. **Who connects a company's ERP.** Today only the installation administrator (C3, C-030).
+   - Recommendation: **the Workspace owner, for their own Workspace**, so the operator never types
+     a company's credential; the administrator keeps the right.
+   - **Answer**: pending.
+7. **Accept spec 0018's removal of row security for a multi-company installation** (section 11).
+   - Recommendation: **yes**, with the tests and the Applications layout named there.
+   - **Answer**: pending.
+
+## 10. The flow from end to end
+
+Who does what, from a new company to an employee using its app.
+- The operator is the installation administrator.
+- *Built* means the code exists on `main` or a wave branch today.
+- *Missing* names the work.
+
+```mermaid
+sequenceDiagram
+  autonumber
+  actor Op as Operator (installation administrator)
+  actor Own as Company owner
+  actor Cre as Creator in the company
+  actor Emp as Employee (app user)
+  participant KC as Keycloak (one realm)
+  participant Hub as Hub
+  participant E2B as E2B sandbox
+  participant Apps as Applications PostgreSQL
+  participant ERP as Company ERP
+  Op->>Hub: create Workspace "Company X"
+  Op->>Hub: invite the owner's email as owner
+  Op->>KC: create the owner's sign-in (by hand today; spec 0006 screen later)
+  Own->>KC: sign in
+  KC-->>Hub: verified identity
+  Hub-->>Own: invitation claimed, owner of Company X
+  Own->>Hub: connect the company's model account (Workspace scope)
+  Own->>Hub: connect the ERP (Sankhya), credential sealed in the Hub
+  Own->>Hub: invite colleagues (member role)
+  Cre->>Hub: create a Project, describe the app
+  Hub->>E2B: the Builder writes, checks and builds the app
+  Hub->>Apps: allocate the Project's schema and roles
+  Own->>Hub: bind the ERP connection to the Project
+  Cre->>Hub: open the Preview (preview host)
+  Hub->>ERP: reads through the connector executor
+  Own->>Hub: publish (Q5) and give the employee access
+  Emp->>KC: sign in on the app's host
+  Emp->>Hub: use the app
+  Hub->>Apps: handler in the runner, Project role only
+  Hub->>ERP: read through the bound connection
+```
+
+| Step | Who | Built today? | Missing for a multi-company installation |
+| --- | --- | --- | --- |
+| 1–2 Create the company and invite its owner | operator | built: Workspace creation and invitations | only the administrator may create a Workspace (decision 5) |
+| 3 Create the owner's sign-in | operator | by hand in Keycloak (`infra/keycloak/create-first-user.sh`) | spec 0006 Pessoas screen, scoped to the Workspace (decision 3) |
+| 4–6 Owner signs in, claims the invitation | owner | built | — |
+| 7 Company model account | owner | built for persons; company account in build (0017) as installation scope | Workspace scope (decision 2) |
+| 8 Connect the ERP | owner | built for the administrator only | the owner may connect (decision 6) |
+| 9 Invite colleagues | owner | built; each still needs a Keycloak sign-in | spec 0006 |
+| 10–13 Build, check, Preview, app data | creator | built | the public Preview domain (study H1) |
+| 14–15 Bind the ERP, read it | owner, creator | built | — |
+| 16 Publish and give access | owner | access built (Q3); Publish is Q5 | Q5 |
+| 17–20 Employee uses the app | employee | built on the pilot hosts | the public app domain; app users' sign-ins (spec 0006) |
+
+## 11. Correction: row security leaves with spec 0018
+
+Section 2 and S7 rest on PostgreSQL row security, which is true on `main` today. Spec 0018 changes
+that:
+- It is approved and built on `wave/authorization-model`.
+- Its migrations `0072` to `0074` are also on `wave/company-model-accounts-spec`.
+- It removes every Hub row policy. Its AC-7 reads: "The Hub catalog has zero policies/RLS/FORCE
+  flags".
+- A migrated database from `wave/company-model-accounts-spec` (`7a202a3`) shows 0 policies, 0
+  tables with row security, 1 function and 3 roles. `main` shows 50 policies on 26 tables, 4
+  functions and 7 roles.
+
+After that wave, one Workspace is kept from another by the admission owner: closed read gates and
+proof-scoped SQL filters, the Documenso pattern of 0018's references. That is the same class of
+boundary as Windmill and ToolJet, with stronger types. The wave records the accepted loss as a new
+decision. Its reopen trigger is "a consumer requires database-enforced row or column isolation".
+
+**Is a multi-company installation that consumer?** Not necessarily. Three backstops cover the risk
+without returning the role and policy machinery the wave just removed:
+1. A test per operation that tries another Workspace's ids (section 8, done-when). 0018's AC-1
+   already makes an outsider's id indistinguishable from an unknown one.
+2. The Applications data, the companies' own rows, kept apart by **PostgreSQL itself**: a database
+   per company in the Applications cluster, a schema per Project inside it. This is to be settled by
+   the database study.
+3. Reopen on the first observed disclosure, as the trigger says.
+
+**Numbering.** The wave names its new decision C-039. `main` already has a different C-039 (S1's
+child specs), and C-040 and C-041. The wave's entry needs the next free number when it merges.
