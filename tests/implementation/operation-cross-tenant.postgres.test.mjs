@@ -173,7 +173,7 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
   const entries = []
   const database = recording(fixture.database, entries)
   const registry = createRegistryModule({ database })
-  const projects = createProjectStore({ database, repository: { prepare: async () => STARTER }, deletion: { releaseApplicationData: async () => undefined, killSandboxes: async () => undefined, deleteRepository: async () => undefined, purgeIdentityAccess: purgeProject, purgeRegistry: registry.purge, purgeConnectorBindings: purgeProjectBindings, purgeBuilder: purgeProjectBuilder }, builder: builderProjectPorts })
+  const projects = createProjectStore({ database, repository: { prepare: async () => STARTER }, deletion: { releaseApplicationData: async () => undefined, killSandboxes: async () => undefined, deleteRepository: async () => undefined, purgeIdentityAccess: purgeProject, purgeRegistry: registry.purge, purgeConnectorBindings: purgeProjectBindings, hasOpenProjectRun: builderProjectPorts.hasOpenProjectRun, purgeBuilder: purgeProjectBuilder }, builder: builderProjectPorts })
   const workspaces = createWorkspaceStore(database)
   const builder = createBuilderStore({ database, ownerId: randomUUID(), registry })
   const runOfB = (await query(connection, 'SELECT builder_run_id FROM builder.builder_run WHERE project_id = $1', [projectB])).rows[0].builder_run_id

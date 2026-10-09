@@ -1,10 +1,10 @@
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import { ArtifactDigest, ArtifactRevisionId, SourceRevision, type BuilderRunId, type ProjectId } from '@conexus/contract'
-import type { Admitted, RunOwner, SystemScope } from '../identity-access/admission.js'
+import type { Admitted, RunOwner, SystemScope } from '../identity-access/public.js'
 import { sql } from '../platform/db.js'
 import { Failure } from '../platform/failure.js'
-import type { SealedApplication } from '../platform/sealed-application.js'
+import type { SealedApplication } from './seal.js'
 import { contentsOf } from './seal.js'
 
 const RunSource = z.object({ state: z.literal('RUNNING'), owner_id: z.string(), candidate_revision: SourceRevision.nullable(), result_source_revision: SourceRevision.nullable() })

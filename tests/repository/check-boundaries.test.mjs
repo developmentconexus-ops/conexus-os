@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { resolve } from 'node:path'
 import test from 'node:test'
 import ts from 'typescript'
-import { findings, violations } from '../../scripts/check-boundaries.mjs'
+import { findings, staleSqlDependencies, violations } from '../../scripts/check-boundaries.mjs'
 
 const root = resolve(import.meta.dirname, '../..')
 const fixture = (name, options = {}) => {
@@ -36,7 +36,7 @@ test('the data module and the one caller are the edge', () => {
     rootNames: [resolve(root, 'tests/fixtures/census-boundaries/pg-rows.ts')],
     options: { strict: true, skipLibCheck: true, noEmit: true, target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.NodeNext, moduleResolution: ts.ModuleResolutionKind.NodeNext, types: [] },
   })
-  assert.deepEqual(findings(program, { root, pgEdge: ['tests/fixtures/census-boundaries/pg-rows.ts'], responseEdge: [] }), { pgQueryRows: [], pgImportFiles: [], webResponseJson: [], sqlWrites: [], authorityTableWrites: [], gateReferences: [], rawPersonReads: [] })
+  assert.deepEqual(findings(program, { root, pgEdge: ['tests/fixtures/census-boundaries/pg-rows.ts'], responseEdge: [] }), { pgQueryRows: [], pgImportFiles: [], webResponseJson: [], sqlWrites: [], authorityTableWrites: [], gateReferences: [], rawPersonReads: [], sqlOwners: [] })
 })
 
 test('a write whose filter is not visible in its template is found, and a write with one is not', () => {
@@ -96,7 +96,7 @@ test('the rules of the real register name the modules that may write the authori
     ['iam.*', 'INSERT/UPDATE/DELETE', 'apps/hub/src/identity-access/'],
     ['project.project_deletion', 'INSERT/UPDATE/DELETE', 'apps/hub/src/project/deletion.ts'],
     ['project.project', 'DELETE', 'apps/hub/src/project/deletion.ts'],
-    ['platform.operation_receipt', 'DELETE', 'apps/hub/src/project/deletion.ts apps/hub/src/platform/receipt.ts'],
+    ['platform.operation_receipt', 'DELETE', 'apps/hub/src/platform/receipt.ts'],
   ])
 })
 
@@ -129,4 +129,77 @@ test('every finding is prohibited unless it is an explicit boundary exception', 
   assert.deepEqual(violations({ pgQueryRows: ['a.ts#x'], webResponseJson: ['apps/web/src/app/failure.ts#readFailure'], gateReferences: ['a.ts#y'] }), ['pgQueryRows: a.ts#x', 'gateReferences: a.ts#y'])
   assert.deepEqual(violations({ webResponseJson: ['a.ts#x', 'b.ts#y'] }, { webResponseJson: ['a.ts#x'] }), ['webResponseJson: b.ts#y'])
   assert.deepEqual(violations({ authorityTableWrites: ['DELETE iam.account'], sqlWrites: ['a merge'], pgImportFiles: ['a.ts'] }), ['authorityTableWrites: DELETE iam.account', 'sqlWrites: a merge', 'pgImportFiles: a.ts'])
+})
+
+test('SQL ownership follows the actual tag declaration, registered relations and scoped CTEs', () => {
+  const path = 'tests/fixtures/census-boundaries/sql-relations.ts'
+  const prefix = `${path}#`
+  const sqlTables = { 'project.project': [], 'iam.account': [], 'unknown.project': [] }
+  const options = { sqlTables, sqlOwner: (source) => source === path ? 'project' : null }
+  const expected = [
+    ['quoted', 'foreign SQL relation iam.account'],
+    ['aliased', 'foreign SQL relation iam.account'],
+    ['localAlias', 'foreign SQL relation iam.account'],
+    ['destructuredAlias', 'foreign SQL relation iam.account'],
+    ['bracketAlias', 'foreign SQL relation iam.account'],
+    ['nested', 'foreign SQL relation iam.account'],
+    ['foreignWrite', 'foreign SQL relation iam.account'],
+    ['unknown', 'unregistered SQL relation project.unregistered'],
+    ['unknownSchema', 'unregistered SQL relation unknown.project'],
+    ['unqualified', 'unregistered SQL relation project'],
+    ['nestedCte', 'foreign SQL relation iam.account'],
+    ['cteScope', 'unregistered SQL relation owned'],
+    ['quotedCase', 'unregistered SQL relation IAM.account'],
+    ['dynamic', 'dynamic SQL relation'],
+    ['dynamicQuoted', 'dynamic SQL relation'],
+    ['dynamicJoin', 'dynamic SQL relation'],
+    ['dynamicComma', 'dynamic SQL relation'],
+    ['dynamicFragment', 'dynamic SQL relation'],
+    ['dynamicFunction', 'dynamic SQL relation'],
+    ['composed', 'foreign SQL relation iam.account'],
+  ].map(([operation, problem]) => `${prefix}${operation}: ${problem}`)
+  assert.deepEqual(fixture('sql-relations', options).sqlOwners.sort(), expected.sort())
+
+  const dependency = `${prefix}nested -> iam.account`
+  const matchedSqlDependencies = new Set()
+  const allowed = fixture('sql-relations', { ...options, sqlDependencies: [dependency, `${prefix}foreignWrite -> iam.account`], matchedSqlDependencies })
+  assert.deepEqual(allowed.sqlOwners.sort(), expected.filter((entry) => entry !== `${prefix}nested: foreign SQL relation iam.account`).sort())
+  assert.deepEqual(staleSqlDependencies([dependency], matchedSqlDependencies), [])
+  assert.deepEqual(staleSqlDependencies([`${prefix}owned -> iam.account`], matchedSqlDependencies), [`stale SQL dependency: ${prefix}owned -> iam.account`])
+  const unknownOwner = fixture('sql-relations', { ...options, sqlOwner: (source) => source === path ? undefined : null }).sqlOwners
+  assert.ok(unknownOwner.includes(`${prefix}owned: unknown SQL owner`))
+})
+
+test('read dependencies never authorize INTO, DML or unsupported statement effects', () => {
+  const path = 'tests/fixtures/census-boundaries/sql-ownership-regressions.ts'
+  const sqlTables = { 'iam.account': [], 'project.project': [], 'project.project_deletion': [], 'builder.builder_run': [], 'builder.project_working_state': [] }
+  const writes = ['into', 'insert', 'update', 'remove', 'merge', 'cteWrite']
+  const unsupported = { truncate: 'TruncateStmt', lock: 'LockStmt', createAs: 'CreateTableAsStmt', copy: 'CopyStmt' }
+  const refused = [...writes, ...Object.keys(unsupported)].map((operation) => `${path}#${operation} -> iam.account`)
+  const reads = [`${path}#authorizedRunLock -> builder.builder_run`, `${path}#registryPointer -> builder.project_working_state`, `${path}#registryRetention -> builder.builder_run`]
+  const matchedSqlDependencies = new Set()
+  const found = fixture('sql-ownership-regressions', { sqlTables, sqlDependencies: [...refused, ...reads], matchedSqlDependencies, sqlOwner: (source) => source === path ? 'project' : null })
+  const effects = new Set([...writes, ...Object.keys(unsupported)])
+  assert.deepEqual(found.sqlOwners.filter((entry) => effects.has(entry.split('#')[1].split(':')[0])).sort(), [
+    ...writes.map((operation) => `${path}#${operation}: foreign SQL relation iam.account`),
+    ...Object.entries(unsupported).map(([operation, kind]) => `${path}#${operation}: unsupported SQL statement ${kind}`),
+  ].sort())
+  assert.deepEqual([...matchedSqlDependencies].sort(), reads.sort())
+  assert.deepEqual(staleSqlDependencies([...refused, ...reads], matchedSqlDependencies).sort(), refused.map((entry) => `stale SQL dependency: ${entry}`).sort())
+  for (const operation of ['ownInto', 'authorizedProjectLock', 'authorizedRunLock', 'registryPointer', 'registryRetention']) assert.ok(!found.sqlOwners.some((entry) => entry.startsWith(`${path}#${operation}:`)))
+
+  const admissionReads = [`${path}#authorizedProjectLock -> project.project`, `${path}#authorizedProjectLock -> project.project_deletion`, `${path}#authorizedRunLock -> builder.builder_run`]
+  const admitted = new Set()
+  const iam = fixture('sql-ownership-regressions', { sqlTables, sqlDependencies: admissionReads, matchedSqlDependencies: admitted, sqlOwner: (source) => source === path ? 'identity-access' : null })
+  assert.deepEqual([...admitted].sort(), admissionReads.sort())
+  assert.ok(!iam.sqlOwners.some((entry) => /#authorized(?:Project|Run)Lock:/.test(entry)))
+})
+
+test('CTE definitions observe declaration order, recursive visibility and lexical scopes', () => {
+  const path = 'tests/fixtures/census-boundaries/sql-ownership-regressions.ts'
+  const operations = new Set(['nonrecursive', 'forward', 'earlier', 'recursive', 'recursiveForward', 'outer', 'nestedHidden', 'siblingScope', 'statementScope'])
+  const found = fixture('sql-ownership-regressions', { sqlTables: { 'project.project': [], 'iam.account': [] }, sqlOwner: (source) => source === path ? 'project' : null })
+  assert.deepEqual(found.sqlOwners.filter((entry) => operations.has(entry.split('#')[1].split(':')[0])).sort(), [
+    ['nonrecursive', 'project'], ['forward', 'later'], ['nestedHidden', 'project'], ['siblingScope', 'hidden'], ['statementScope', 'project'],
+  ].map(([operation, relation]) => `${path}#${operation}: unregistered SQL relation ${relation}`).sort())
 })

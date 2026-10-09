@@ -3,20 +3,18 @@ import {
   ProjectId, ProjectRevision, createProject,
   type AccountId, type SourceRevision, type IdempotencyKey, type Input, type ProjectCreated, type ProjectCard, type ProjectDetail, type ProjectListRow, type WorkspaceId,
 } from '@conexus/contract'
-import { admitProject, admitWorkspace, receiptOf, type Admitted, type WorkspaceScope } from '../identity-access/admission.js'
+import { admitProject, admitWorkspace, receiptOf } from '../identity-access/public.js'
+import type { builderProjectPorts } from '../builder/public.js'
 import type { Database } from '../platform/db.js'
 import { sql } from '../platform/db.js'
 import { Failure } from '../platform/failure.js'
-import { gitUnavailableAs } from '../platform/git-failure.js'
 import { complete, reserve } from '../platform/receipt.js'
-import { CardRow, DetailRow, ListRow } from './rows.js'
+import { SummaryRow, DetailRow, ListRow } from './rows.js'
 import { createProjectDeletion } from './deletion.js'
 import type { ProjectDeletionPorts } from './deletion.js'
 
 /** What the Builder writes on the Project's creation transaction: its proof is the check. */
-export type BuilderProjectPorts = Readonly<{
-  register(proof: Admitted<WorkspaceScope<'project.create'>>, projectId: ProjectId): Promise<void>
-}>
+export type BuilderProjectPorts = Pick<typeof builderProjectPorts, 'register' | 'readProjectActivity'>
 
 // Gives a Project that does not exist yet its repository in the Conexus Git, with the starter on
 // `main`, and answers `main`. The same Project id always reaches the same repository, so calling it
@@ -67,7 +65,7 @@ export const createProjectStore = ({
     if (reserved.kind === 'replay') return { replayed: true, reply: reserved.reply }
     const projectId = reserved.resourceId
 
-    const starterRevision = await repository.prepare(projectId).catch(gitUnavailableAs('PROJECT_REPOSITORY_UNAVAILABLE'))
+    const starterRevision = await repository.prepare(projectId)
 
     return database.transaction(accountId, async (gate) => {
       const proof = await admitWorkspace(gate, { workspaceId, action: 'project.create' })
@@ -112,25 +110,24 @@ export const createProjectStore = ({
     }),
     listProjectSummariesWithActivity: ({ accountId, workspaceId }) => database.read(accountId, async (gate) => {
       const proof = await admitWorkspace(gate, { workspaceId, action: 'workspace.read' })
-      return [...await proof.tx.rows(CardRow, sql`
-        SELECT * FROM (
-          SELECT stored.project_id, stored.name,
-            CASE WHEN deletion.project_id IS NULL THEN 'live' ELSE 'deleting' END AS state,
-            CASE WHEN deletion.project_id IS NULL THEN stored.archived END AS archived,
-            CASE WHEN deletion.project_id IS NULL THEN to_char(coalesce(latest.created_at, stored.created_at) AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') END AS last_activity_at,
-            coalesce(latest.created_at, stored.created_at) AS sort_at,
-            CASE WHEN deletion.project_id IS NULL THEN latest.state END AS run_state,
-            CASE WHEN deletion.project_id IS NULL THEN latest.result_kind END AS run_result_kind,
-            deletion.project_id IS NULL AND working.last_preview_source_revision IS NOT NULL AS has_preview
-          FROM project.project AS stored
-          LEFT JOIN LATERAL (
-            SELECT run.state, run.result_kind, run.created_at FROM builder.builder_run AS run
-            WHERE run.project_id = stored.project_id ORDER BY run.created_at DESC, run.builder_run_id DESC LIMIT 1
-          ) AS latest ON true
-          LEFT JOIN builder.project_working_state AS working ON working.project_id = stored.project_id
-          LEFT JOIN project.project_deletion AS deletion ON deletion.project_id = stored.project_id AND deletion.completed_at IS NULL
-          WHERE stored.workspace_id = ${proof.scope.workspaceId}
-        ) AS combined ORDER BY sort_at DESC, project_id`)]
+      const projects = await proof.tx.rows(SummaryRow, sql`
+        SELECT stored.project_id, stored.name,
+          CASE WHEN deletion.project_id IS NULL THEN 'live' ELSE 'deleting' END AS state,
+          CASE WHEN deletion.project_id IS NULL THEN stored.archived END AS archived,
+          stored.created_at, (extract(epoch FROM stored.created_at) * 1000000)::bigint::text AS sort_at
+        FROM project.project AS stored
+        LEFT JOIN project.project_deletion AS deletion ON deletion.project_id = stored.project_id AND deletion.completed_at IS NULL
+        WHERE stored.workspace_id = ${proof.scope.workspaceId}`)
+      const activity = new Map((await builder.readProjectActivity(proof, projects.map((row) => row.project_id))).map((entry) => [entry.projectId, entry]))
+      return projects.map((row) => {
+        const latest = activity.get(row.project_id)
+        const card: ProjectCard = row.state === 'deleting'
+          ? { projectId: row.project_id, name: row.name, state: row.state }
+          : { projectId: row.project_id, name: row.name, state: row.state, archived: row.archived,
+            lastActivityAt: (latest?.createdAt ?? row.created_at).toISOString(), latestRun: latest?.latestRun ?? null, hasPreview: latest?.hasPreview ?? false }
+        return { card, sortAt: latest?.sortAt ?? row.sort_at }
+      }).sort((a, b) => a.sortAt > b.sortAt ? -1 : a.sortAt < b.sortAt ? 1 : a.card.projectId < b.card.projectId ? -1 : a.card.projectId > b.card.projectId ? 1 : 0)
+        .map(({ card }) => card)
     }),
     deleteProject: createProjectDeletion({ database, ports: deletion }).deleteProject,
   })

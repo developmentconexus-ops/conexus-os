@@ -6,7 +6,7 @@ import {
 } from '@conexus/contract'
 import type { ApplicationAccess, ApplicationGrantEntry, ApplicationInvitationEntry, ProjectId } from '@conexus/contract'
 import { routes } from '../http/access.js'
-import { ApplicationSlug, SLUG_LENGTH, slugBase } from '../platform/application-slug.js'
+import { ApplicationSlug, SLUG_LENGTH, slugBase } from './application-slug.js'
 import { sql } from '../platform/db.js'
 import type { Database, Sql, WriteTx } from '../platform/db.js'
 import { Failure } from '../platform/failure.js'

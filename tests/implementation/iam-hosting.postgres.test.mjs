@@ -12,7 +12,7 @@ const { createHttpApp } = await import(hubModuleUrl('http/app.js'))
 const { createHostingModule } = await import(hubModuleUrl('hosting/module.js'))
 const { createRegistryModule } = await import(hubModuleUrl('registry/module.js'))
 const { createProjectDeletion } = await import(hubModuleUrl('project/deletion.js'))
-const { purgeProjectBuilder } = await import(hubModuleUrl('builder/project-ports.js'))
+const { builderProjectPorts, purgeProjectBuilder } = await import(hubModuleUrl('builder/project-ports.js'))
 const { purgeProjectBindings } = await import(hubModuleUrl('connectors/store.js'))
 const { purgeProject } = await import(hubModuleUrl('identity-access/application-access.js'))
 const { admitProject } = await import(hubModuleUrl('identity-access/admission.js'))
@@ -103,7 +103,7 @@ const estate = async (t, prefix, { invoke } = {}) => {
     database: hub.database,
     ports: {
       releaseApplicationData: async () => undefined, killSandboxes: async () => undefined, deleteRepository: async () => undefined,
-      purgeIdentityAccess: purgeProject, purgeConnectorBindings: purgeProjectBindings, purgeRegistry: registry.purge, purgeBuilder: purgeProjectBuilder,
+      purgeIdentityAccess: purgeProject, purgeConnectorBindings: purgeProjectBindings, purgeRegistry: registry.purge, hasOpenProjectRun: builderProjectPorts.hasOpenProjectRun, purgeBuilder: purgeProjectBuilder,
     },
   })
   return { hub, revision, registry, invocations, applicationApp, previewApp, sessionOf, page, fetchFile, api, sessions, launch, enter, previewCookie, previewPage, purge }

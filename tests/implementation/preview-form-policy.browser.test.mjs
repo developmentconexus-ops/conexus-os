@@ -4,7 +4,7 @@ import { createServer } from 'node:http'
 import test from 'node:test'
 import { hubModuleUrl } from './hub-build.mjs'
 
-const { previewContentSecurityPolicy } = await import(hubModuleUrl('platform/application-csp.js'))
+const { previewContentSecurityPolicy } = await import(hubModuleUrl('hosting/application-csp.js'))
 
 const page = `<!doctype html><html><body>
 <form id="todo"><input name="task" value="Comprar pao"><button type="submit">Adicionar</button></form>

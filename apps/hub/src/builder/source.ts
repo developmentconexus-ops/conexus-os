@@ -1,7 +1,7 @@
 import type { ConexusGit } from './conexus-git.js'
 import type { ProjectId, SourceComparison, SourceFile, SourceRevision, SourceTree } from '@conexus/contract'
 import { Failure } from '../platform/failure.js'
-import { gitUnavailableAs } from '../platform/git-failure.js'
+import { gitUnavailableAs } from './git-failure.js'
 
 type BuilderSourceChange = SourceComparison['files'][number]
 

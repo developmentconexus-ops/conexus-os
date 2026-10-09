@@ -75,3 +75,25 @@ test('seal refuses a build of 12582913 bytes and accepts one of 12582912', () =>
   assert.equal(seal(outcome(sized(12582912)), run).projectId, projectId)
   refusal(outcome(sized(12582913)))
 })
+
+test('seal payload identity cannot be copied or replaced by changing the visible fields', () => {
+  const sealed = seal(outcome(), run)
+  const original = contentsOf(sealed)
+  const copied = { ...sealed, sourceRevision: 'b'.repeat(40) }
+  const inherited = Object.create(sealed)
+  const samePrototype = Object.assign(Object.create(Object.getPrototypeOf(sealed)), sealed)
+  for (const forged of [copied, inherited, samePrototype]) {
+    assert.throws(() => contentsOf(forged), { id: 'INTERNAL_UNEXPECTED', details: { invariant: 'SEALED_APPLICATION_NOT_SEALED' } })
+  }
+  assert.equal(sealed.sourceRevision, sourceRevision)
+  assert.equal(contentsOf(sealed).payloadJson, original.payloadJson)
+})
+
+test('a sealed application freezes its visible Project, source and digest', () => {
+  const sealed = seal(outcome(), run)
+  for (const [key, changed] of [['projectId', executionId], ['sourceRevision', 'b'.repeat(40)], ['digest', 'f'.repeat(64)]]) {
+    assert.throws(() => { sealed[key] = changed }, TypeError)
+  }
+  assert.deepEqual({ projectId: sealed.projectId, sourceRevision: sealed.sourceRevision }, { projectId, sourceRevision })
+  assert.equal(sealed.digest, createHash('sha256').update(contentsOf(sealed).payloadJson).digest('hex'))
+})

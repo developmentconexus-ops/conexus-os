@@ -1,25 +1,12 @@
-import type { ApplicationFilePath, ArtifactDigest, ArtifactRevisionId, BuilderRunId, MediaType, ProjectId, SourceRevision } from '@conexus/contract'
-import type { Admitted, ProjectScope, RunOwner, SystemScope } from '../identity-access/admission.js'
-import type { CompiledApplication, CompiledApplicationThumbnail } from './application-artifact-runtime.js'
-import type { PrepareAnswer } from '../app-runner/server-manifest.js'
+import type { ProjectId } from '@conexus/contract'
+import type { CompiledApplication } from './application-artifact-runtime.js'
+import type { PrepareAnswer } from '../app-runner/public.js'
 import type { CandidateOperationPorts } from './run-operation.js'
 import { Failure } from '../platform/failure.js'
-import type { SealedApplication } from '../platform/sealed-application.js'
+import type { RegistryModule } from '../registry/public.js'
 
-export type ServedLaunch = Readonly<{
-  sourceRevision: SourceRevision
-  artifactRevisionId: ArtifactRevisionId
-  digest: ArtifactDigest
-  entryPath: 'index.html'
-  files: ReadonlyArray<Readonly<{ path: ApplicationFilePath; mediaType: MediaType }>>
-}>
-
-/** The registry owner's part in a Builder run, as the Builder declares it. The sealed build is the platform's nominal type, so the Builder can pass back only what `seal` made. */
-export type BuilderRegistry = Readonly<{
-  seal: (outcome: Readonly<{ compiledApplication: CompiledApplication; thumbnail: CompiledApplicationThumbnail | null }>, run: Readonly<{ projectId: ProjectId; builderRunId: BuilderRunId; sourceRevision: SourceRevision }>) => SealedApplication
-  retain: (proof: Admitted<SystemScope<'builder-executor'>>, input: Readonly<{ builderRunId: BuilderRunId; projectId: ProjectId; owner: RunOwner; sealed: SealedApplication }>) => Promise<Readonly<{ artifactRevisionId: ArtifactRevisionId; digest: ArtifactDigest }>>
-  readLaunch: (proof: Admitted<ProjectScope<'project.build'>>) => Promise<ServedLaunch | null>
-}>
+export type { ServedLaunch } from '../registry/public.js'
+export type BuilderRegistry = Pick<RegistryModule, 'seal' | 'retain' | 'readLaunch'>
 
 // The application runner, as the Builder needs it: converge a Project's Preview schema on a built
 // artifact's migrations before that artifact is offered as a Preview, and run one candidate

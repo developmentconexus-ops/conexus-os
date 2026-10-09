@@ -3,7 +3,7 @@ import test from 'node:test'
 import { checkBuilderTemplate } from '../../scripts/builder-e2b-template.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 
-const { CURRENT_TEMPLATE_PIN } = await import(hubModuleUrl('platform/application-template-pins.js'))
+const { CURRENT_TEMPLATE_PIN } = await import(hubModuleUrl('registry/application-template-pins.js'))
 const { TEMPLATE_REF, RECIPE_SHA256 } = await import(hubModuleUrl('builder/application-artifact-runtime.js'))
 
 const V2_CURRENT = { profile: 'REACT_VITE_V2', templateRef: '537fnzf4c16x9d7oz21k:419afad1-5af3-405c-9a52-3f6dc81dee5c', recipeSha256: 'aba3957596f114f821e290dd89416aba2fa1785fc34cb5162a899de759e84ffc' }

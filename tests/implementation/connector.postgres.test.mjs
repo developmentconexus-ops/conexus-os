@@ -355,3 +355,39 @@ test('administrator revocation against createWorkspaceConnection and disableWork
   await revokingAdministrator
   await assert.rejects(store.listConnections({ accountId: ID.administrator, workspaceId: ID.workspace }), { id: 'INSTALLATION_ADMINISTRATOR_REQUIRED' })
 })
+
+for (const change of ['archive', 'deletion']) {
+  for (const reader of ['bindings', 'credential']) {
+    test(`broker ${reader} preserves its statement snapshot after concurrent ${change}`, { skip }, async (t) => {
+      const fixture = await setupConnectors(t, `connector_snapshot_${change}_${reader}`)
+      const { connection, brokerStore, seedProject, addConnection, bind, archive } = fixture
+      const projectId = await seedProject('Synthetic')
+      const connectionId = await addConnection('sankhya', 'Synthetic', CREDENTIAL)
+      await bind(projectId, connectionId, 'erp')
+      await query(connection, 'INSERT INTO iam.application(project_id, slug, created_by) VALUES ($1, $2, $3)', [projectId, 'synthetic-app', ID.owner])
+      await query(connection, 'INSERT INTO iam.application_grant(project_id, account_id, granted_by) VALUES ($1, $2, $3)', [projectId, ID.outsider, ID.owner])
+      const scope = scopeFromArtifactSource({ via: 'APPLICATION', accountId: ID.outsider, projectId })
+      const original = pg.Client.prototype.query
+      const finalRead = reader === 'credential' ? /SELECT stored\.credential_sealed/ : /SELECT bound\.binding_id, bound\.name, bound\.connection_id, stored\.connector_id/
+      let changed = false
+      // Commit between admission and the final SELECT, not after its snapshot has been taken.
+      pg.Client.prototype.query = async function (...args) {
+        const text = typeof args[0] === 'string' ? args[0] : args[0]?.text
+        if (!changed && finalRead.test(text ?? '')) {
+          changed = true
+          if (change === 'archive') await archive(projectId, true)
+          else await query(connection, 'INSERT INTO project.project_deletion(project_id, workspace_id, name, requested_by) VALUES ($1, $2, $3, $4)', [projectId, ID.workspace, 'Synthetic', ID.owner])
+        }
+        return original.apply(this, args)
+      }
+      try {
+        const answer = reader === 'credential' ? await brokerStore.readConnectionCredential(scope, connectionId) : await brokerStore.listBindings(scope)
+        assert.equal(changed, true)
+        if (reader === 'credential') assert.equal(answer === null, true, 'a closed Project returns no credential')
+        else assert.deepEqual(answer, [])
+      } finally {
+        pg.Client.prototype.query = original
+      }
+    })
+  }
+}

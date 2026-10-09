@@ -1,8 +1,9 @@
+import { lockPresentProject } from '../project/public.js'
 import { z } from 'zod'
 import { OPEN_RUN_STATES } from '../generated/builder-run-vocabulary.js'
-import { admitProject } from '../identity-access/admission.js'
+import { admitProject } from '../identity-access/public.js'
 import { ConversationId, ProjectId, type AccountId, type BuilderRunId, type SourceRevision } from '@conexus/contract'
-import { admitSystem } from '../identity-access/admission.js'
+import { admitSystem } from '../identity-access/public.js'
 import { sql, type Database } from '../platform/db.js'
 import { Failure } from '../platform/failure.js'
 import { withRun } from './run-lifecycle.js'
@@ -11,7 +12,6 @@ const PROVIDER_SANDBOX_ID = /^[A-Za-z0-9_-]{1,128}$/
 const SandboxRow = z.object({ provider_sandbox_id: z.string().nullable() })
 const RunPlace = z.object({ project_id: ProjectId, conversation_id: ConversationId })
 const HeldRun = RunPlace.extend({ owner_id: z.string().nullable() })
-const Present = z.object({ present: z.literal(1) })
 
 export type ConversationStore = Readonly<{
   /** Upserts the mirror head, the synced `main` and the end of a turn, for the conversation the run spoke in. */
@@ -47,9 +47,10 @@ export const createConversationStore = ({ database, ownerId }: Readonly<{ databa
       refusedNewWork = true
     }
     if (turnEnded) await database.system('builder-executor', async (gate) => {
-      const { tx } = await admitSystem(gate, 'builder-executor')
+      const proof = await admitSystem(gate, 'builder-executor')
+      const { tx } = proof
       const place = await tx.maybe(RunPlace, sql`SELECT project_id, conversation_id FROM builder.builder_run WHERE builder_run_id = ${builderRunId}`)
-      if (!place || place.conversation_id !== conversationId || !await tx.maybe(Present, sql`SELECT 1 AS present FROM project.project WHERE project_id = ${place.project_id} FOR SHARE`)) throw refused()
+      if (!place || place.conversation_id !== conversationId || !await lockPresentProject(proof, place.project_id)) throw refused()
       const run = await tx.maybe(HeldRun, sql`
         SELECT project_id, conversation_id, owner_id::text AS owner_id FROM builder.builder_run
         WHERE builder_run_id = ${builderRunId} AND project_id = ${place.project_id} AND state = ANY(${OPEN_RUN_STATES}::text[]) FOR UPDATE`)

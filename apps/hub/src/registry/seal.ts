@@ -1,9 +1,8 @@
 import { createHash } from 'node:crypto'
 import { canonicalBytes } from '../../../../packages/canonical-json/src/index.mjs'
 import { APPLICATION_MAX_FILES, APPLICATION_MAX_TOTAL_BYTES, ApplicationFilePath, ArtifactDigest, Sha256, mediaTypeOfPath, type BuilderRunId, type MediaType, type ProjectId, type SourceRevision } from '@conexus/contract'
-import { CURRENT_TEMPLATE_PIN } from '../platform/application-template-pins.js'
+import { CURRENT_TEMPLATE_PIN } from './application-template-pins.js'
 import { Failure } from '../platform/failure.js'
-import { SealedApplication } from '../platform/sealed-application.js'
 
 const THUMBNAIL_MAX_BYTES = 512_000
 const PNG_MAGIC = [0x89, 0x50, 0x4e, 0x47]
@@ -23,7 +22,20 @@ type Thumbnail = Readonly<{ bytes: Uint8Array; sha256: Sha256 }>
 type Contents = Readonly<{ payloadJson: string; thumbnail: Thumbnail | null }>
 const contents = new WeakMap<SealedApplication, Contents>()
 
-class SealedBuild extends SealedApplication {}
+class SealedBuild {
+  // biome-ignore lint/correctness/noUnusedPrivateClassMembers: type identity is the use
+  private readonly sealed = true
+
+  private constructor(readonly projectId: ProjectId, readonly sourceRevision: SourceRevision, readonly digest: ArtifactDigest) {
+    Object.freeze(this)
+  }
+
+  static create(run: SealRun, digest: ArtifactDigest): SealedBuild {
+    return new SealedBuild(run.projectId, run.sourceRevision, digest)
+  }
+}
+
+export type SealedApplication = SealedBuild
 
 function refused(): never {
   throw new Failure('APPLICATION_ARTIFACT_INPUT_REFUSED')
@@ -71,7 +83,7 @@ export function seal({ compiledApplication, thumbnail }: SealOutcome, run: SealR
     files: sealFiles(files),
   }
   const bytes = canonicalBytes(payload)
-  const sealed = new SealedBuild(run.projectId, run.sourceRevision, ArtifactDigest.parse(createHash('sha256').update(bytes).digest('hex')))
+  const sealed = SealedBuild.create(run, ArtifactDigest.parse(createHash('sha256').update(bytes).digest('hex')))
   contents.set(sealed, { payloadJson: bytes.toString('utf8'), thumbnail: sealThumbnail(thumbnail) })
   return sealed
 }

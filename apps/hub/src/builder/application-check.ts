@@ -1,5 +1,5 @@
 import { Failure } from '../platform/failure.js'
-import { CURRENT_TEMPLATE_PIN } from '../platform/application-template-pins.js'
+import { CURRENT_TEMPLATE_PIN } from '../registry/public.js'
 import { checkEntryPath } from './check-delivery.js'
 import { AGENT_IDENTITY } from './check/agent.js'
 import type { Caller } from './check/command.js'

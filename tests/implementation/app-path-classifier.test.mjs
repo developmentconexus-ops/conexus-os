@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { hubModuleUrl } from './hub-build.mjs'
 
-const { classifyAppPath } = await import(hubModuleUrl('platform/application-path.js'))
+const { classifyAppPath } = await import(hubModuleUrl('hosting/application-path.js'))
 
 const DECLARED = new Set(['index.html', 'assets/app.js', 'LICENSE', 'conexus-server/manifest.json'])
 const declared = (path) => DECLARED.has(path)

@@ -1,5 +1,5 @@
 import type { ApplicationFilePath } from '@conexus/contract'
-import { SERVER_ROOT } from '../platform/application-path.js'
+import { SERVER_ROOT } from './application-path.js'
 import { Failure } from '../platform/failure.js'
 
 /** One file of the admitted artifact's `conexus-server/` tree, exactly as the runner expects it. */

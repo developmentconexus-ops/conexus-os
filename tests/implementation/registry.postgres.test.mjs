@@ -115,13 +115,11 @@ test('the application check refuses a revoked grant, a removed membership, a del
   await assert.rejects(previewFile(database, ID.owner, { projectId, sourceRevision: SOURCE_2, artifactRevisionId: second, path: 'index.html' }), { id: 'PROJECT_NOT_FOUND' }, 'the Preview check refuses a Project in deletion')
 })
 
-test('a subclass of the sealed build that seal did not make is refused by retention and leaves no row', async (t) => {
-  const { store, seedBuilderProject, runFor, runRow, rows } = await world(t, 'conexus_registry_forged')
+test('a forged copy of the sealed build is refused by retention and leaves no row', async (t) => {
+  const { store, seedBuilderProject, runFor, runRow, rows, sealFor } = await world(t, 'conexus_registry_forged')
   const projectId = await seedBuilderProject('Atlas', ID.workspace, P)
   const builderRunId = await runFor(projectId)
-  const { SealedApplication } = await import(hubModuleUrl('platform/sealed-application.js'))
-  class Forged extends SealedApplication {}
-  const forged = new Forged(projectId, SOURCE_E, D_E)
+  const forged = { ...sealFor(projectId, builderRunId, [F]) }
   await assert.rejects(store.settleBuilderRunBuild({ builderRunId, kind: 'BUILT', sealed: forged }), invariant('SEALED_APPLICATION_NOT_SEALED'))
   assert.deepEqual(await rows(projectId), { revisions: 0, thumbnails: 0 })
   assert.equal((await runRow(builderRunId)).state, 'RUNNING')

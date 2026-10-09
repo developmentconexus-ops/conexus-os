@@ -7,7 +7,7 @@ import { createWorkspace, type IdempotencyKey, WorkspaceId as WorkspaceIdSchema 
 import type { AuthenticationGate, CommandGate, ReadTx, RawToken, WriteTx } from '../../apps/hub/src/platform/db.js'
 import type { CredentialKind } from '../../apps/hub/src/model-account/credential.js'
 import { digest, sql } from '../../apps/hub/src/platform/db.js'
-import { SealedApplication } from '../../apps/hub/src/platform/sealed-application.js'
+import type { SealedApplication } from '../../apps/hub/src/registry/public.js'
 import type { RegistryModule } from '../../apps/hub/src/registry/module.js'
 import { purgeProject } from '../../apps/hub/src/identity-access/application-access.js'
 import { provisionIdentity } from '../../apps/hub/src/identity-access/authentication.js'
@@ -87,7 +87,7 @@ void registry.purge(builder, project)
 void registry.purge(purge, project)
 // @ts-expect-error An object with the sealed build's fields is not a sealed build (an accidental structural value).
 void registry.retain(runProof, { projectId: project, sourceRevision, digest: artifactDigest })
-// @ts-expect-error The sealed build is an abstract class, so it cannot be built by accident.
+// @ts-expect-error The sealed type exposes no constructor to consumers.
 void new SealedApplication(project, sourceRevision, artifactDigest)
 // @ts-expect-error A served read proof has a read transaction, so it cannot write.
 checked.tx.run(sql`SELECT 1`)
@@ -161,3 +161,40 @@ void [purgedByAccount, positiveIdentityPurge, provisionedBare, positiveAuthentic
 joinClaimed(accountProof, { workspaces: [{ workspace_id: workspace, role: 'owner', invited_by: account }], applications: [] })
 // @ts-expect-error A claim is made only by claimInvitations: a literal cannot grant an application.
 grantClaimed(accountProof, { workspaces: [], applications: [{ project_id: project, invited_by: account, created_at: '' }] })
+
+// @ts-expect-error Registry-owned values expose no superclass to consumers.
+class ForgedSealed extends SealedApplication {}
+declare const sealed: SealedApplication
+// @ts-expect-error A visible-field copy loses registry identity.
+const copiedSealed: SealedApplication = { ...sealed }
+// @ts-expect-error Matching fields cannot forge registry identity.
+const literalSealed: SealedApplication = { projectId: sealed.projectId, sourceRevision: sealed.sourceRevision, digest: sealed.digest }
+
+void [ForgedSealed, copiedSealed, literalSealed]
+
+import { lockPresentProject, requireCreatedProject } from '../../apps/hub/src/project/public.js'
+// @ts-expect-error Read admission cannot lock a Project for an executor transition.
+lockPresentProject(reader, project)
+// @ts-expect-error Workspace ids cannot select Projects.
+lockPresentProject(await admitSystem(gate, 'builder-executor'), workspace)
+// @ts-expect-error A different Workspace action cannot register a newly created Project.
+requireCreatedProject(owner, project)
+
+import { openProjectCondition } from '../../apps/hub/src/project/public.js'
+// @ts-expect-error A Workspace proof cannot select a Project predicate.
+openProjectCondition(reader)
+// @ts-expect-error A caller cannot substitute another Project for the proof scope.
+openProjectCondition(positiveChecked, project)
+// @ts-expect-error A system executor proof is not Project/application access.
+openProjectCondition(await admitSystem(gate, 'builder-executor'))
+
+import { builderProjectPorts } from '../../apps/hub/src/builder/public.js'
+import { readMemberWorkspaceIds } from '../../apps/hub/src/identity-access/public.js'
+// @ts-expect-error Only admitted Workspace reads select activity.
+builderProjectPorts.readProjectActivity(owner, [project])
+// @ts-expect-error Workspace ids are not Project ids in an activity batch.
+builderProjectPorts.readProjectActivity(reader, [workspace])
+// @ts-expect-error A read proof cannot decide a Project deletion's busy state.
+builderProjectPorts.hasOpenProjectRun(reader, project)
+// @ts-expect-error Membership reads take a read account admission.
+readMemberWorkspaceIds(accountProof)

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import { AccountId, ModelAccountId, type ModelAccountProvider, type Result } from '@conexus/contract'
-import type { AccountScope, Admitted, RunScope, SystemScope } from '../identity-access/admission.js'
+import type { AccountScope, Admitted, RunScope, SystemScope } from '../identity-access/public.js'
 import { sql } from '../platform/db.js'
 import { Failure } from '../platform/failure.js'
 import { modelAccountContext, SealedColumn, type Sealed, type SecretEnvelope } from '../platform/secrets.js'

@@ -10,7 +10,7 @@ import type { ProjectSourceReads } from './source.js'
 import type { BuilderRunSummary, BuilderRunView, BuilderStore, TakenOverRun } from './store.js'
 import type { ApplicationServerPort, BuilderRegistry } from './application-build.js'
 import { Failure, logFailure, toFailure } from '../platform/failure.js'
-import { gitUnavailableAs } from '../platform/git-failure.js'
+import { gitUnavailableAs } from './git-failure.js'
 import { logLine, logger } from '../platform/logger.js'
 import { heapUsedRatio } from '../platform/heap.js'
 

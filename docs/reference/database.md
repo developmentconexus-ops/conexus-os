@@ -96,6 +96,8 @@ request.
 ## 5. Database access code
 
 - A store **must** reach the database only through `apps/hub/src/platform/db.ts`.
+- SQL **must** name its owner's tables. Other owners expose scoped transaction operations or
+  composed SQL predicates; exact admission and temporary dependencies are registered by the boundary check.
 - Values **must** be bind parameters, which the `sql` tag guarantees by construction.
 - A write **must** keep its filter visible in the SQL template: `update` and `delete` have a
   top-level `where`, an upsert's `do update` has its own `where`, and `merge` is not used.

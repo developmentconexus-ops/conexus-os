@@ -1,4 +1,4 @@
-import { NETWORK_GLOBALS } from '../../../app-runner/server-manifest.js'
+import { NETWORK_GLOBALS } from '../../../app-runner/public.js'
 
 // biome-ignore lint/suspicious/noExplicitAny: the parser's ESTree nodes are walked structurally
 type AstNode = { type: string } & Record<string, any>

@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { BuilderRunId, ConversationId, ProjectId, SourceRevision } from '@conexus/contract'
-import { admitSystem } from '../identity-access/admission.js'
+import { admitSystem } from '../identity-access/public.js'
 import { sql, type Database } from '../platform/db.js'
 import { OPEN_RUN_STATES } from '../generated/builder-run-vocabulary.js'
 
