@@ -21,7 +21,7 @@ estudo divergem, vale o estudo mais recente citado na linha.
 - 🔨 existe hoje no código;
 - 🆕 a construir.
 
-Os nomes de empresas, pessoas e domínios dos exemplos são inventados (`.example` é um domínio
+O domínio da Conexus é o real, `conexus.fun` (C-OS-001). Os nomes de empresas, pessoas e os domínios delas são inventados (`.example` é um domínio
 reservado para exemplos).
 
 ---
@@ -98,7 +98,7 @@ flowchart LR
     emp["Funcionário"]
   end
   subgraph cf["Cloudflare"]
-    dns["DNS + HTTPS<br/>hub.conexus.example<br/>*.conexus.example"]
+    dns["DNS + HTTPS<br/>hub.conexus.fun<br/>*.conexus.fun"]
     dispatch["Dispatch Worker"]
     userw["User Workers<br/>um por versão de app"]
     outbound["Outbound Worker<br/>recusa toda rede"]
@@ -146,7 +146,7 @@ flowchart LR
 ```
 
 **Como ler o mapa:**
-- Pessoas que usam o Hub entram por `hub.conexus.example`. O tráfego passa pelo túnel até a VPS.
+- Pessoas que usam o Hub entram por `hub.conexus.fun`. O tráfego passa pelo túnel até a VPS.
 - Funcionários que usam um app entram pelo endereço do app. Lá, o Dispatch Worker chama o código do
   app na própria Cloudflare.
 - O app nunca fala com o banco nem com a internet. Ele pede ao Dispatch Worker, que leva o pedido ao
@@ -358,7 +358,7 @@ sequenceDiagram
   Hub->>N: aplicar as migrações do app como owner (dados de teste)
   Hub->>Hub: guardar a alocação, com a senha do login selada
   Hub->>CF: subir o user Worker desta revisão (handlers + telas)
-  Hub->>CF: apontar preview-<revisão>.conexus.example para ele
+  Hub->>CF: apontar pedidos--aurora--preview.conexus.fun para ele
   Carlos->>CF: abre o Preview e testa
 ```
 
@@ -383,7 +383,7 @@ sequenceDiagram
   Ana->>Hub: publicar a revisão aprovada
   Hub->>N: schema p_pedidos_published + papéis (primeira vez), migrações novas
   Hub->>CF: user Worker da versão publicada
-  Hub->>CF: pedidos--aurora.conexus.example → versão publicada
+  Hub->>CF: pedidos--aurora.conexus.fun → versão publicada
   Ana->>Hub: ligar as integrações ao Projeto, dar acesso à Duda
 ```
 
@@ -405,7 +405,7 @@ sequenceDiagram
   participant S as Serviço de dados
   participant N as banco co_aurora
   participant ERP as Sistema integrado (ex.: ERP)
-  Duda->>D: pedidos--aurora.conexus.example (sem sessão)
+  Duda->>D: pedidos--aurora.conexus.fun (sem sessão)
   D-->>Duda: redireciona para entrar no Hub
   Duda->>Hub: entra, o Hub devolve um código de uso único
   Duda->>D: volta com o código, o app grava a própria sessão
@@ -477,7 +477,7 @@ Hoje, um Projeto com app recusa editar uma migração que já foi aplicada, para
 | Banco no Neon | `co_aurora` | `co_boavista` |
 | Schemas | `p_pedidos_preview`, `p_pedidos_published`, `p_estoque_preview` | `p_ordens_preview`, `p_ordens_published` |
 | Logins | um por schema, como `co_aurora_pedidos_published_rt` | `co_boavista_ordens_published_rt`, ... |
-| Endereços | `pedidos--aurora.conexus.example` | `ordens--boavista.conexus.example` |
+| Endereços | `pedidos--aurora.conexus.fun` | `ordens--boavista.conexus.fun` |
 | Conversas do Builder | banco `builder`, `resourceId` `workspace:aurora:...` | banco `builder`, `resourceId` `workspace:boavista:...` |
 | Código-fonte | Conexus Git: um repositório por Projeto | idem |
 
@@ -549,7 +549,7 @@ Os itens marcados "adiado" ficam para a sessão de implementação ou para decid
 | # | Decisão | Resposta | Status | Por quê | Fonte |
 | --- | --- | --- | --- | --- | --- |
 | 1 | Como várias empresas usam a Conexus | Uma instalação; Workspace = empresa | ✅ | É o jeito mais barato de várias empresas pequenas validarem com um operador só | tenancy 9.1, C-024 |
-| 2 | O que pertence à empresa | Tudo que ela configura | ✅ | Cada empresa precisa das próprias chaves, conexões e pessoas | tenancy 9.2 |
+| 2 | O que pertence à empresa | Tudo que ela configura, inclusive as contas de modelo e as assinaturas de IA: são da empresa, não da pessoa (respondido 2026-10-09) | ✅ | Cada empresa precisa das próprias chaves, conexões e pessoas | tenancy 9.2, C-024, C-032 |
 | 3 | Nomes visíveis entre Projetos da mesma empresa | Aceito para a validação | ✅ | Com um banco por empresa, os nomes só aparecem dentro da própria empresa | tenancy 9.4, C-037 |
 | 4 | Unidade de dados dos apps | Um banco por empresa, um schema por app e ambiente | ✅ | Um schema por app quase não custa nada; um banco por app custa ~7 MB e segundos para criar | banco 9.1 |
 | 5 | Banco do Mastra | Banco `builder`; conversas pelo `resourceId` com o Workspace, *spans* pelo `organizationId` | ✅ | Conversas são dados da empresa; o Mastra já separa por organização | Builder 9.1 |
@@ -563,10 +563,10 @@ Os itens marcados "adiado" ficam para a sessão de implementação ou para decid
 | 13 | Independência de provedor | Protocolo padrão primeiro; porta só onde não há padrão, com adaptador local | ✅ | Trocar de provedor vira configuração, não código | direção 3 |
 | 14 | Servidor | VPS Hostinger KVM 2 em São Paulo, um mês de teste e depois 12 meses | ✅ | A VPS não guarda nada insubstituível, então o preço decide; tem root e Docker em São Paulo | B1, deployment 9.2 |
 | 15 | Banco | Neon São Paulo, começando no grátis | ✅ | Restauração para qualquer momento, cópias para testes e nenhuma manutenção de banco | B2, deployment 9.1 |
-| 16 | Bancos das empresas | **Um projeto Neon de controle e um projeto por empresa** (exemplo em §4) | ✅ | Restaura e apaga cada empresa sozinha; cada uma tem a própria cota grátis. No plano pago custa mais em escala (§8), e juntar empresas depois é o procedimento P3 | B3, §4 |
+| 16 | Bancos das empresas | **Um projeto Neon de controle e um projeto por empresa** (exemplo em §4) | ✅ | Restaura e apaga cada empresa sozinha; cada uma tem a própria cota grátis. No MVP cabe no grátis (cada empresa tem a própria cota); no plano pago custa mais em escala (§8), e juntar empresas depois é o procedimento P3 | B3, §4 |
 | 17 | Armazenamento de arquivos e backups | R2, com backups cifrados pela chave pública do operador; Magalu Object Storage se precisar ficar no Brasil | ✅ | Sem custo de saída; cifrado, nem uma VPS invadida lê backups antigos | B4, §11 |
 | 18 | DNS, HTTPS, túnel | Cloudflare; domínio registrado na Hostinger, DNS na Cloudflare | ✅ | DNS, HTTPS e túnel grátis, sem porta aberta na VPS | B5 |
-| 19 | Formato dos endereços | **Um domínio só:** Hub em `hub.<domínio>`, apps em `<app>--<empresa>.<domínio>` (um nível, cabe no certificado grátis). Sem segundo domínio, o Hub precisa de cookies `__Host-` e checagem de origem (§5) | ✅ | Escolha do operador; o certificado grátis cobre um nível de subdomínio | hosting 9.6 |
+| 19 | Formato dos endereços | **Um domínio só, `conexus.fun`:** Hub em `hub.conexus.fun`, apps em `<app>--<empresa>.conexus.fun` (um nível, cabe no certificado grátis). Sem segundo domínio no MVP | ✅ | Sem custo extra; o Mitra faz o mesmo (`agent.mitralab.io` e apps em `<workspace>-<projeto>.prod.mitralab.io`). As proteções do §5 cobrem o mesmo site | hosting 9.6, C-048, C-OS-001 |
 | 20 | E-mail | Resend grátis | ✅ | O Better Auth aceita qualquer remetente; o grátis cobre a fase de validação | B6 |
 | 21 | Segredos | Arquivos na VPS (modo 600, convenção `*_FILE`), colocados pelo deploy; a Hostinger não tem cofre de segredos | ✅ | A Hostinger não tem cofre de segredos; o código já lê segredos de arquivos | B7 (ajustado à Hostinger) |
 | 22 | Build e deploy | GitHub Actions + GHCR | ✅ | Grátis para repositório público | B8 |
@@ -635,14 +635,19 @@ Separei o que foi demonstrado do que é risco.
   serviço de dados tem as senhas.
 
 **Riscos e limites:**
-- **Riscos que precisam ser aceitos formalmente** (guia S §10: uma linha no registro e em A §11). A
-  revisão independente listou seis; eles esperam a aceitação do operador:
-  - a mesma chave e o mesmo processo servem todas as empresas;
-  - o banco no Neon é público, sem lista de IPs;
-  - até um dia de Git pode se perder;
-  - deploys derrubam as conversas do Builder em andamento;
-  - a Conexus fica presa à Cloudflare;
-  - dados são processados fora do Brasil (LGPD art. 33).
+- **Os seis riscos e como reduzir cada um sem gastar.** O operador não aceitou os riscos como
+  estavam (2026-10-09). Esta é a redução proposta; o que sobra (a última coluna) é o que ainda
+  precisaria ser aceito no registro (guia S §10).
+
+  | Risco | O que fazer, sem custo | O que sobra |
+  | --- | --- | --- |
+  | Uma VPS e uma chave para todas as empresas | O código gerado já fica fora da VPS (C-046). Nenhuma porta aberta, e o SSH só pelo túnel com Cloudflare Access. Atualização automática de segurança; contêineres sem root e com disco só de leitura. **Uma chave por empresa**, selada pela chave mestra, que permite apagar uma empresa destruindo a chave dela. Uma chave separada para as senhas dos apps. A chave mestra com cópia fora da VPS | Quem tomar a VPS inteira, com o Hub rodando, alcança todas as empresas: é o preço de uma instalação compartilhada (C-024) |
+  | Banco do Neon acessível pela internet | Senhas aleatórias de 128 bits. TLS com verificação do certificado (`verify-full`). Senhas só seladas na VPS, nunca no código nem no CI. A senha de admin de cada empresa é usada só pelo provisionador. Troca de senha se houver suspeita | Uma senha vazada funciona de qualquer lugar até ser trocada; a lista de IPs só existe no plano Scale |
+  | Até um dia de código do Git perdido | Um pacote Git (`git bundle`) para o R2 a cada revisão admitida, cifrado | Só o trabalho ainda não admitido, que também está na máquina do E2B e nas mensagens |
+  | Deploy derruba conversas do Builder | O deploy espera nenhuma execução do Builder estar ativa e roda de madrugada | Uma queda do processo ainda derruba, até o refactor "sem estado" |
+  | Dependência da Cloudflare | O executor isolated-vm roda nos testes a cada mudança, então a saída fica sempre pronta | Trocar levaria dias, não meses |
+  | Dados processados fora do Brasil | Backups cifrados com a chave do operador antes de sair. As contas de modelo são da própria empresa, que contrata o provedor diretamente. O Builder trabalha com dados de Preview, não com os publicados. Cláusulas padrão da ANPD nos termos com cada empresa | E2B, provedores de modelo, Resend e Cloudflare processam dados nos EUA, com base legal em contrato (art. 33; leitura, não parecer jurídico) |
+
 - **A chave que sela as credenciais é insubstituível.** Ela abre as credenciais de todas as empresas
   e fica na VPS. Precisa de uma cópia guardada fora dela, cifrada para o operador.
 - **O serviço de dados não pode receber essa chave.** As senhas dos apps precisam de outra chave
@@ -688,11 +693,12 @@ Separei o que foi demonstrado do que é risco.
 
 ## 12. Próximos passos
 
-1. **Revisão final deste desenho** com o operador.
-2. **As respostas pendentes** da revisão independente (`review.md` na investigação 05): o domínio dos
-   apps, o custo de um projeto Neon por empresa em escala, os riscos a aceitar, as assinaturas pessoais
-   de IA e o nome do domínio.
-3. **A sessão de implementação:** os itens ⏳ (A7, serviço de dados, processos sem estado) e a ordem
-   das mudanças da seção 10.
-4. **Levar os documentos para o repositório "probe factory"**, que precisa do nome exato
-   (dono/repositório).
+1. **Respostas do operador de 2026-10-09 já registradas:**
+   - um domínio só, `conexus.fun` (C-048, C-OS-001);
+   - contas de modelo e assinaturas por empresa (C-032).
+2. **Ainda a confirmar:**
+   - o plano de redução dos seis riscos (§11) e o que sobra deles;
+   - manter um projeto Neon por empresa (decisão 16, que no MVP fica no grátis).
+3. **A sessão de implementação:** os itens adiados (A7, serviço de dados, processos sem estado, A6) e
+   a ordem do [mapa de mudanças](https://github.com/developmentconexus-ops/conexus-factory-integration-probe/blob/investigation/05-cloud-architecture/investigations/05-cloud-architecture/change-map.md).
+4. **Subir para o conexus-os** a partir do repositório do probe, quando o plano estiver completo.
