@@ -11,6 +11,7 @@ const { Failure } = await import(hubModuleUrl('platform/failure.js'))
 const { createConexusGit } = await import(hubModuleUrl('builder/conexus-git.js'))
 const { createProjectStore } = await import(hubModuleUrl('project/store.js'))
 const { builderProjectPorts } = await import(hubModuleUrl('builder/project-ports.js'))
+const { gitUnavailableAs } = await import(hubModuleUrl('builder/public.js'))
 
 test('no Builder or Project column or function names the Factory binding or a GitHub repository', async (t) => {
   const { connectionString } = await buildHubDatabase(t, 'conexus_git_functions')
@@ -32,7 +33,7 @@ test('creating a Project makes its Conexus Git repository with the starter on ma
   onCleanup(() => rmSync(scratch, { recursive: true, force: true }))
   const git = createConexusGit({ root: join(scratch, 'git'), starter: [{ path: 'app/index.html', content: 'starter\n' }] })
   const prepared = []
-  const storeWith = (prepare) => createProjectStore({ database, deletion: {}, builder: builderProjectPorts, repository: { prepare: async (projectId) => { prepared.push(projectId); return prepare(projectId) } } })
+  const storeWith = (prepare) => createProjectStore({ database, deletion: {}, builder: builderProjectPorts, repository: { prepare: async (projectId) => { prepared.push(projectId); return prepare(projectId).catch(gitUnavailableAs('PROJECT_REPOSITORY_UNAVAILABLE')) } } })
   const create = (store, idempotencyKey, body = { name: 'Contador', sourceBootstrap: { mode: 'NEW' } }) =>
     store.createProject({ accountId: ID.owner, workspaceId: ID.workspace, idempotencyKey, body })
 
