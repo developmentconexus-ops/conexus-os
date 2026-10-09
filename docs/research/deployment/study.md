@@ -443,6 +443,23 @@ infrastructure code must change so the place can change later.
      - C restores only from a daily backup unless $100 a month is added.
      - D costs about twice as much and does not sleep.
      - The way out of A is P3: dump and restore one company at a time.
+   - **Answer** (2026-10-09): **Neon, starting on the Free plan, paying when needed.**
+   - **What the Free plan asks of the code:**
+     - **Quota:** the Free plan gives "100 CU-hours" per project a month. Once they are used, "its
+       compute is suspended … until the next billing period, unless you upgrade", and existing
+       connections drop
+       ([free plan limits](https://neon.com/faqs/free-plan-limits-and-quotas)†,
+       [consumption limits](https://neon.com/docs/guides/consumption-limits)†).
+     - **Today's Hub never lets the database idle** (E6, E7). At the smallest size (0.25 CU) it
+       burns 100 CU-hours in about 400 hours, so the database would stop around day 17 of each
+       month.
+     - **The fix:** item 4 (a lease row, and no query on a timer while nothing runs). Then the
+       database sleeps outside working hours. About 242 awake hours at 0.25 CU is about 60
+       CU-hours, inside the quota.
+     - **Until that refactor lands,** the companies' installation should run on Launch. Launch
+       has "no minimum monthly fee" and costs about $20 a month always on.
+     - **Two more limits:** a Free project stores 0.5–1 GB (Neon's pages disagree)†, and it
+       restores only 6 hours back.
 2. **Where Conexus's processes run now.**
    - Options:
      - A: a Hostinger VPS KVM 2 in São Paulo;
@@ -462,6 +479,24 @@ infrastructure code must change so the place can change later.
        "planning to seek venture funding soon".
      - **Hostinger's "Cloud" plans are not an option:** they are shared hosting with no root,
        Docker or PostgreSQL.
+   - **Answer** (2026-10-09): **Hostinger VPS in São Paulo, KVM 2 (or KVM 4).**
+     - The operator buys one month first (R$70,99, seen by the operator), then 12 months if it holds.
+     - The domain is already registered at Hostinger. It stays there, with its name servers
+       delegated to Cloudflare for DNS, Tunnel and app hosts.
+     - Pick São Paulo at setup: Hostinger's support says the location "is fixed after initial
+       setup"†.
+     - KVM 2 (2 vCPU, 8 GB) is enough with the database on Neon. KVM 4 (4 vCPU, 16 GB) is for
+       when Builder checks need more CPU.
+   - **Google's $300 trial was also weighed:**
+     - **The offer:** "a $300 Welcome credit to spend over 90 days"; after that the account closes,
+       and "If you don't upgrade during that grace period, your Free Trial resources are permanently
+       deleted"
+       ([free features and trial](https://docs.cloud.google.com/free/docs/free-cloud-features)†).
+     - **What it buys:** three months of a São Paulo VM. After that, an e2-medium is about $48 a
+       month with disk and IPv4, about three times the Hostinger VPS, so the move would come anyway.
+     - **The free tier:** its e2-micro is US-only.
+     - **The verdict:** useful for trying a Google service, not as the home of the companies'
+       installation.
 3. **A server at home.** Recommendation: **not for company data**; it is fine as a development
    machine.
 4. **Stateless processes (section 8, items 2 to 4).** Recommendation: **yes, in the first
@@ -483,6 +518,15 @@ infrastructure code must change so the place can change later.
    - The plan works without any credit.
 8. **App runtime decision 3** (the data service next to the database) is still open. Every
    topology here assumes it.
+   - **Answer** (2026-10-09) to items 4, 5 and 8: deferred to the implementation session, which
+     studies the repository and everything that has to change.
+   - The data service, if kept, runs on the same VPS: a third container of the same image, beside
+     the Hub and the Builder.
+9. **Provider independence (section 11).** **Answer** (2026-10-09): **yes**.
+   - A standard protocol first.
+   - A port only where none exists, always with a local adapter.
+   - No cloud layer of our own.
+10. **The provider probe.** The operator will not run it now. The Free plan itself is the trial.
 
 ## 10. Draft for the spec
 

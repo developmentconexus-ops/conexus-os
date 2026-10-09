@@ -58,6 +58,15 @@ The studies behind it:
      - `SET LOCAL app.workspace_id` once per transaction, from the admission proof.
    - It works the same on a self-hosted or a managed PostgreSQL, because it needs no superuser.
 
+3. **Provider independence** (answered 2026-10-09,
+   [deployment §11](../deployment/study.md#11-provider-independence-protocols-and-ports)).
+   - Conexus depends on standard protocols where they exist: PostgreSQL, the S3 API, an OCI image,
+     OpenTelemetry, OIDC.
+   - It writes a port only where none exists (the Builder's sandbox, the app runtime). Each port
+     has a production adapter and a local one.
+   - A vendor's own API stays in tooling, never in the product path.
+   - There is no general cloud layer of our own.
+
 ## 3. Open: platform and code architecture
 
 A1 and A2 are answered; with them most of the cloud services in section 4 are unblocked.
@@ -83,8 +92,8 @@ read through search, not verified.
 
 | # | Service | Options | Recommendation | Blocked by |
 | --- | --- | --- | --- | --- |
-| B1 | Compute for the Hub, the Builder and the data service | (a) one VM with Docker Compose in São Paulo: AWS Lightsail 4 GB about $24, Google e2-medium about $39 plus disk and IPv4; (b) managed containers: Cloud Run, Fly, Cloudflare Containers | **(a) Lightsail now; Cloudflare Containers after the stateless refactor and a São Paulo placement test** ([deployment](../deployment/study.md) 9.2, 9.5). Cloud Run does not pay in São Paulo | the stateless refactor (deployment §8) |
-| B2 | Control PostgreSQL (Hub, Builder's Mastra store) | (a) self-hosted on the VM; (b) Neon; (c) Supabase Pro; (d) Cloud SQL | **(b) Neon Launch in `aws-sa-east-1`, one project for control and companies**, about $20 a month at four companies, the same as (a) once (a)'s bigger VM is counted ([deployment](../deployment/study.md) 9.1, 9.6). Supabase restores only daily without $100 a month; Fly Managed Postgres cannot create a database with SQL | the lease-row refactor (deployment P5–P7) |
+| B1 | Compute for the Hub, the Builder and the data service | **answered 2026-10-09: a Hostinger VPS in São Paulo, KVM 2 (or KVM 4), one month first, then 12 months** | the operator's choice; Hostinger's Cloud plans are shared hosting and cannot run Conexus ([deployment](../deployment/study.md) 9.2) | — |
+| B2 | Control PostgreSQL (Hub, Builder's Mastra store) | **answered 2026-10-09: Neon in São Paulo, starting on the Free plan, paying when needed** | the Free plan suspends a project after 100 CU-hours a month; today's Hub keeps the database awake and would use them by about day 17, so the lease-row refactor comes first, or Launch (no minimum fee) until it does ([deployment](../deployment/study.md) 9.1) | the lease-row refactor |
 | B3 | Applications PostgreSQL (a database per company) | the same project as B2 / its own | **The same Neon project as B2 now**; a company moves to its own project by dump and restore (deployment P3) | app runtime decision 3 |
 | B4 | Object storage (backups, app files, assets) | Cloudflare R2 / Google Cloud Storage / S3 | **R2** (no egress fees) | — |
 | B5 | DNS, TLS, edge, hosts per company and app | Cloudflare (DNS, wildcard certificates, Tunnel, custom hostnames) | **Cloudflare** | address shape (hosting 9.6) |
