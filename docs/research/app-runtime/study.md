@@ -314,9 +314,8 @@ Spikes: `bash docs/research/app-runtime/spike.sh` (Docker, Node, npm), on Postgr
        - calls the handler with `cpuMs` and `subRequests` limits;
        - validates the output.
      - **The capabilities:**
-       - `db`: the dispatcher logs in as the app's own role to the company's database. It never
-         switches roles in a session that handler SQL reaches, which is the reason the database
-         study rejected `SET LOCAL ROLE`.
+       - `db`: a call to the **data service** (section 11), which runs the SQL as the app's own
+         login from a pool per app. No session that handler SQL reaches ever switches roles (D2).
        - `caller`: from the session.
        - `connectors`: a call to the Hub's executor with a token scoped to the call.
      - **An outbound Worker** that refuses everything else.
@@ -352,6 +351,7 @@ Spikes: `bash docs/research/app-runtime/spike.sh` (Docker, Node, npm), on Postgr
 ## 9. Decisions for the operator
 
 1. **Where generated app code runs.**
+   - **Answer** (2026-10-09): A, Workers for Platforms.
    - Options:
      - A: **Workers for Platforms**;
      - B: Dynamic Workers ($5 plan, open beta);
@@ -365,17 +365,112 @@ Spikes: `bash docs/research/app-runtime/spike.sh` (Docker, Node, npm), on Postgr
    - **Answer**: pending.
 2. **The way out.** Recommendation: **keep the handler contract portable and the isolated-vm
    executor tested as a fallback**, not run in production.
-   **Answer**: pending.
+   **Answer** (2026-10-09): yes.
 3. **App data from the edge.**
    - Options:
-     - A: the dispatcher logs in as the app's role to the company database (direct, or through
-       Hyperdrive);
-     - B: the dispatcher asks the Hub, which runs the SQL.
-   - Recommendation: **A** for latency and because the database stays the wall. B is the
-     fallback if the database must not be reachable from Cloudflare.
-   - **Answer**: pending.
+     - A: the dispatcher logs in to the company database itself;
+     - B: **a data service next to the database** runs each `db.query` as the app's own login,
+       from a pool per app.
+   - Recommendation, **revised after section 11: B**.
+     - A breaks at scale: Hyperdrive allows 25 configurations per account, and a login per call
+       costs a full handshake.
+     - A's shared variant lets a handler become another app (D2).
+     - B keeps a login per app (D3), keeps connections pooled and the database private, and keeps
+       every credential inside Conexus's network.
+   - **Answer**: the operator asked to understand it across scenarios (2026-10-09). Pending.
 4. **Sign-in (A2).** The operator chose Better Auth (2026-10-09). Its `@better-auth/sso` plugin
    supports OIDC and SAML 2.0 providers per organization, with domain verification (Better Auth
    documentation, `docs/plugins/sso.mdx`). So enterprise SSO is available when needed. The app
    hosts verify the session in the dispatcher.
    **Answer** (2026-10-09): Better Auth.
+
+## 11. The data path at scale: many companies, many apps
+
+The operator asked to see decision 3 across scenarios. This section answers with spikes, and it
+**revises** decision 3.
+
+### What each handler call needs
+
+- `db.query(text, values)` must run as the app's own database login, against its company's
+  database.
+- A handler call makes one to a few queries.
+
+The question is where the login and its connections live.
+
+### Spikes
+
+`bash docs/research/app-runtime/data-spike.sh` (PostgreSQL 17.10, SCRAM passwords, local, so no
+network distance):
+
+| Claim | How it was tested | Result |
+| --- | --- | --- |
+| D1. A login per query costs far more than the query | 50 runs of a fresh connection plus a query, against 50 queries on a pooled connection | Fresh login: median 8–10 ms, p95 13–14 ms. Pooled: median 0.3–0.5 ms. Over a network, each login adds several round trips |
+| D2. One login per company that switches to the app's role per call lets a handler become another app | `company_a_login` (member of every app role, `NOINHERIT`); each call is `BEGIN; SET LOCAL ROLE app_a_rt` | App A reading app B directly: refused. Two statements in one parameterized query: refused ("cannot insert multiple commands into a prepared statement"). But `SET ROLE app_b_rt` then a read returns app B's row (`99999`), and so does `set_config('role', 'app_b_rt', true)`. Only a deny list of SQL could stop it, and there are at least two spellings |
+| D3. A login per app cannot switch | the same attempts as `app_a_rt` | `permission denied to set role "app_b_rt"`; app B unreadable |
+| Hyperdrive cannot hold a login per app | [Hyperdrive limits](https://developers.cloudflare.com/hyperdrive/platform/limits/) | 25 configured databases per account on Workers Paid; a configuration is one database and one user |
+
+### The three ways, at three sizes
+
+Sizes are illustrative: 5 companies with 10 apps each (50 app logins), 20 × 20 (400), and
+100 × 30 (3,000).
+
+| | A1: the dispatcher opens a login per call, straight to the database | A2: Hyperdrive with one login per company, `SET LOCAL ROLE` per call | **B: a data service next to the database, a pool per app login** |
+| --- | --- | --- | --- |
+| Isolation between a company's apps | login per app (D3) | **broken by D2** | login per app (D3) |
+| Isolation between companies | separate databases | separate databases | separate databases |
+| Database exposed to | Cloudflare's network | Cloudflare's network (or a Tunnel) | **only Conexus's network** |
+| Where app credentials live | the dispatcher, for every app | the dispatcher, per company | **the data service only** |
+| Cost of a query | a full login over the internet each call (D1 plus round trips) | pooled | pooled (D1: about 0.3 ms) plus one hop from the edge, in the same city |
+| Connections at 50 / 400 / 3,000 apps | one per concurrent call; storms hit `max_connections` (100 by default) | 25 companies at most (the Hyperdrive limit) | about one per **active** app, closed when idle; a pooler such as PgBouncer only if needed |
+| Works with a self-hosted or managed PostgreSQL | yes, if public | managed or Tunnel | **either**, including certificate login on a self-hosted one |
+| Moving parts | none new | Hyperdrive | one service, the same image in a `data` mode |
+
+### Why B fits the architecture already decided
+
+- **One gate for company data.** Credentials and company data stay behind Conexus, as model calls
+  (Builder service decision 4) and connector reads (C-030) already do. The edge runs code and
+  serves files, and it holds no key to a company's data.
+- **Mostly existing code.** The data service is today's data plane without the sandbox:
+  - allocation per company database and per app schema (`apps/hub/src/app-runner/data-plane.ts`);
+  - app migrations;
+  - the per-app login.
+
+  What leaves is bubblewrap, the per-call relay and the certificate scripts (section 8).
+- **It scales out.** It is stateless, so it can run several copies: it takes no instance lock,
+  unlike the Hub.
+- **It works with every database answer** of the database and cloud decisions: self-hosted,
+  Neon, Supabase or Cloud SQL.
+
+### The call, end to end
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant B as Browser (app.company host)
+  participant D as Dispatch Worker (Conexus)
+  participant H as Handler (user Worker, no network)
+  participant S as Data service (Conexus, next to the DB)
+  participant Hub as Hub
+  participant P as Company database
+  B->>D: call operation (session cookie)
+  D->>Hub: session and app access (cached briefly)
+  D->>H: input + stubs { db, caller, connectors }
+  H->>D: db.query(text, values) through the stub
+  D->>S: HTTPS, a token signed for this call (app, company, caller, expiry)
+  S->>P: the app's own login, from its pool
+  P-->>S: rows
+  S-->>H: rows
+  H->>D: connectors.fetch(...) through the stub
+  D->>Hub: the one connector executor (C-030)
+  H-->>D: result
+  D-->>B: result, checked against the manifest
+```
+
+The handler never sees the token: the stub holds it, and the outbound Worker refuses every other
+address.
+
+### Not verified
+
+- The hop from a São Paulo point of presence to a São Paulo origin.
+- The data service under load.
+- A pool per app at 3,000 apps (expected: bounded by active apps).
