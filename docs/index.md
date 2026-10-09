@@ -39,6 +39,7 @@ Each guide owns one subject, and a rule lives in one of them.
 | Mastra evidence: where the Hub meets Mastra beyond its plain API | [Mastra reference](reference/mastra/index.md) |
 | Builder framework, planning and evaluation studies (not execution authority) | [Builder research](research/builder/index.md) |
 | A study of a comparable product (not execution authority) | [Mitra](research/mitra/index.md) |
+| Hosting and tenancy: putting Conexus online for several companies (not execution authority) | [Hosting study](research/hosting/study.md) |
 
 Closed waves, their specs and their evidence are in Git history. Code, tests and runtime output may
 challenge a guide; they do not silently replace it.
