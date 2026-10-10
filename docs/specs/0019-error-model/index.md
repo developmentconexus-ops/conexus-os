@@ -47,15 +47,15 @@ The exact private fact schema and existing manifest grammar have no inspected ex
 
 ## Code shape
 
-[shape/](shape/) compiles with TypeScript 6.0.2: `node node_modules/typescript/bin/tsc --noEmit -p docs/specs/0019-error-model/shape`. The spec revision under review owns this result; it does not prove future implementation. U8 deletes shape after production types/tests own the contract.
+The temporary compiled `shape/` held the target contract during the build. It was deleted after U1–U7 made production its owner; the concepts below describe the resulting production contract.
 
-- [types.ts](shape/types.ts): Result, closed code subsets, private fact variants, account-consumer signature.
-- [operations.ts](shape/operations.ts): admission and runner operations using existing input types.
-- [schemas.ts](shape/schemas.ts): strict worker/private answers and validated public trace/code.
-- [server.ts](shape/server.ts): native Failure, public Response writer/bridge and native runner exception event.
-- [client.ts](shape/client.ts): received Error and current useful formatter signatures.
-- [usage.ts](shape/usage.ts): actual admission, public projection, private repair, fetch, native runner escape/prepare/invoke/release and named-fault forwarding call sites.
-- [negative.ts](shape/negative.ts): unknown/flat/wrong-operation codes, mutability, old envelope, private/public field separation and branded boundary values must not compile.
+- Types: Result, closed code subsets, private fact variants, account-consumer signature.
+- Operations: admission and runner operations using existing input types.
+- Schemas: strict worker/private answers and validated public trace/code.
+- Server: native Failure, public Response writer/bridge and native runner exception event.
+- Client: received Error and current useful formatter signatures.
+- Usage: actual admission, public projection, private repair, fetch, native runner escape/prepare/invoke/release and named-fault forwarding call sites.
+- Negative: unknown/flat/wrong-operation codes, mutability, old envelope, private/public field separation and branded boundary values must not compile.
 
 ## Design
 
