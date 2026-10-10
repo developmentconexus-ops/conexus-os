@@ -21,10 +21,11 @@ the guides, never the author's summary. It does not fix the code it reviews. The
    name, plus the codebase principles and delivery. The grammar: an exact path, `dir/**` for every
    path under `dir`, `*` inside one segment. A test maps to the area of the code it proves. A path no
    area matches on `origin/main` is judged by the head's map and named in the review.
-3. Each unit in a wave batch is judged against its card in `docs/specs/<wave>/index.md`: every line of
-   Creates, Satisfies and Deletes is done, nothing is outside its Files, its Proof ran, and every
-   item of the [build checklist](../conexus-build/references/checklist.md) is `ok` or `n/a` with
-   evidence.
+3. For a wave batch, judge each unit against its card in `docs/specs/<wave>/index.md`: every line of
+   Creates, Satisfies and Deletes is done, nothing is outside its Files, and every item of the
+   [build checklist](../conexus-build/references/checklist.md) is `ok` or `n/a` with evidence.
+   Rerun each unit's Proof and review the batch's code in one independent review. Send findings
+   back to the builders before the batch's pull request goes to CI and the Dev Factory.
    Audit the full CI graph and impact map required by
    [delivery](../../../docs/development/delivery.md#proof-and-verification), including consumers
    outside the unit manifest, actual behavior, guide and reference compliance, deletes, census,
