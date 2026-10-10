@@ -9,6 +9,11 @@ test('worker success carries result, including a JSON null', () => {
   assert.deepEqual(workerAnswerSchema.parse({ ok: true, result: null }), { ok: true, result: null })
 })
 
+test('a worker or invoke success without its result is rejected', () => {
+  assert.equal(workerAnswerSchema.safeParse({ ok: true }).success, false)
+  assert.equal(invokeAnswerSchema.safeParse({ ok: true }).success, false)
+})
+
 test('worker failure rejects free codes, arbitrary details and unrelated extensions', () => {
   for (const answer of [
     { ok: false, error: { code: 'SYNTHETIC_UNKNOWN' } },

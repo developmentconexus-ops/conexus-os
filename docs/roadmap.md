@@ -66,8 +66,8 @@ within its stage and work-in-progress gates:
   5 (#532), 4 (#533) and 6 (#546, after #539, #541 and #545) are merged. Part 6 fixed the no-access
   page. After the authorization wave comes the local reset, the test as a person and the S1 proof.
   The one migration baseline that replaces the old chain is not cut at S1 closure. By the
-  operator's decision of 2026-10-10 it is deferred: it is cut once, after the hosting direction
-  now being evaluated is settled.
+  operator's decision of 2026-10-10 it is deferred: it is cut once, when the hosting direction
+  under evaluation is decided.
 - **Error model, wave 1, spec 0019**, [#553](https://github.com/developmentconexus-ops/conexus-os/issues/553),
   `lane:qualification`. One failure model for every process, one result type for a refusal, one
   sender and one reader. It absorbs [#549](https://github.com/developmentconexus-ops/conexus-os/issues/549),

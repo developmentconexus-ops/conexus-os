@@ -2,6 +2,8 @@ import { ReceivedFailure } from '@conexus/contract'
 import type { Result, TraceId } from '@conexus/contract'
 import { failureResponse } from '../../apps/hub/src/http/problem.js'
 import type { InvokeAnswer, PrepareAnswer, SqlState, WorkerAnswer } from '../../apps/hub/src/app-runner/server-manifest.js'
+import type { ConnectResult } from '../../apps/hub/src/model-account/store.js'
+import { Failure } from '../../apps/hub/src/platform/failure.js'
 
 export type ManifestRefusal = Readonly<{ code: 'MANIFEST_REFUSED'; where: string; diagnostic: string }>
 export type AccountConnectionError = Readonly<{ code: 'ACCOUNT_INACTIVE' | 'ACCOUNT_NOT_FOUND' }>
@@ -33,6 +35,21 @@ export const wrongPrepareCode: PrepareAnswer = { ok: false, error: { code: 'HAND
 
 // @ts-expect-error An operation-not-found refusal cannot carry migration identity.
 export const wrongInvokeFacts: InvokeAnswer = { ok: false, error: { code: 'OPERATION_NOT_FOUND', migration: '001_notes.sql' } }
+
+// @ts-expect-error A worker refusal carries no free text.
+export const workerText: WorkerAnswer = { ok: false, error: { code: 'HANDLER_FAILED', sqlstate: null, detail: 'PRIVATE_DIAGNOSTIC_MARKER' } }
+
+// @ts-expect-error A worker cannot emit another operation's refusal.
+export const wrongWorkerCode: WorkerAnswer = { ok: false, error: { code: 'MANIFEST_REFUSED' } }
+
+// @ts-expect-error A failed preparation carries no successful result.
+export const failedPrepareResult: PrepareAnswer = { ok: false, result: { reset: true, applied: [] }, error: { code: 'MANIFEST_REFUSED' } }
+
+// @ts-expect-error The account connection refuses only with its own codes.
+export const wrongAccountCode: ConnectResult = { ok: false, error: { code: 'PROJECT_NOT_FOUND' } }
+
+// @ts-expect-error Logged failure details are scalar.
+new Failure('INTERNAL_UNEXPECTED', { details: { values: ['PRIVATE_DIAGNOSTIC_MARKER'] } })
 
 declare const workerAnswer: WorkerAnswer
 // @ts-expect-error Success data is unavailable until the answer is narrowed.
