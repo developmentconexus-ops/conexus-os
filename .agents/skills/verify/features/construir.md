@@ -44,7 +44,7 @@ Preconditions:
 
 - `tests/live/` (`npm run test:live`) drives the same launch with a scripted model and a local sandbox, and reaches `stream`, `question-card`, `plan-card` and `done-check`. This CLI doesn't.
 - `composer-states` is source-only (`composer.tsx`, `model-picker.tsx`). The fake proxy always lists models, and a failed turn ends before a stop button can be clicked.
-- While a conversation is open, `browser.log` gains a `409 (Conflict)` console error on the conversation URL about every ten seconds, because the Builder's session never becomes ready without a sandbox (cause read from `mastra-session-routes.ts`, not observed). On a Project in deletion, `settings` logs `503`. Both are expected here.
+- An open conversation adds no console error to `browser.log` while it idles. On a Project in deletion, `settings` logs `503`, which is expected here.
 - The Builder opens its E2B sandbox before the model's first token, and this harness closes E2B on purpose. So `stream`, `reasoning`, the question and plan cards and every lens that needs a built app can't be proven here. The fake model proxy does not answer model calls either, so even with a sandbox these need a model stand-in on Gemini's `/v1beta` API. Report these sub-features as skipped, with "E2B closed" as the unmet precondition.
 - Only a rejection from the production native sandbox start receives `BUILDER_SANDBOX_OPEN_FAILED`. Named failures, genuine cancellation and later preparation failures retain their existing behavior. The conversation and Preview use the shared audience table reader; `Sobre` keeps its status summary.
 - Other models offer other levels. The full set of words is `Desligado`, `Baixo`, `Médio`, `Alto`, `Muito alto` and `Máximo`.
