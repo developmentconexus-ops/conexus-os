@@ -2284,11 +2284,10 @@ test('a completed delete drops what the Build screen had cached for the Project'
   const { page, origin } = await web.openPage(t, { viewport: { width: 1200, height: 900 } })
   await page.route('**/api/session', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [workspace], administrator: false }) }))
   await routeBuilder(page, builderState([conversation(conversationId, 'Agenda')], { [conversationId]: [userMessage('user-1', 'Crie uma agenda'), assistantMessage('assistant-1', 'Agenda pronta')] }))
-  // Once the Project is deleted its reads are held, so what the screen shows is what it kept.
+  // Once the Project is deleted its thread reads are held, so what the Build screen shows is what it kept.
   let deleted = false
   const held = new Promise(() => {})
   await page.route(`**/api/control/projects/${projectId}`, async (route) => {
-    if (deleted) await held
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: workspace.workspaceId, name: 'Agenda', projectRevision: '50000000-0000-4000-8000-000000000001', archived: false, state: 'live' }) })
   })
   await page.route(`**/api/control/projects/${projectId}?*`, (route) => {

@@ -55,6 +55,43 @@ test('a completed delete clears cached Project and Builder state before 404 rend
   assert.equal(await page.getByRole('heading', { name: 'Sobre o Projeto' }).count(), 0)
 })
 
+test('Back to a deleted Project shows nothing of it while its read is in flight', async (t) => {
+  const { page, origin } = await withServer(t, 'owner')
+  await page.unroute(`**/api/control/projects/${PROJECT_ID}`)
+  let deleted = false
+  let release
+  const gate = new Promise((resolve) => { release = resolve })
+  await page.route(`**/api/control/projects/${PROJECT_ID}`, async (route) => {
+    if (!deleted) return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+      projectId: PROJECT_ID, workspaceId: WORKSPACE.workspaceId, name: 'Faturamento', state: 'live',
+      projectRevision: '50000000-0000-4000-8000-000000000001', archived: false,
+    }) })
+    await gate
+    return route.fulfill({ status: 404, contentType: 'application/problem+json', body: JSON.stringify({
+      type: 'urn:conexus:problem:PROJECT_NOT_FOUND', title: 'PROJECT_NOT_FOUND', status: 404, code: 'PROJECT_NOT_FOUND',
+    }) })
+  })
+  await page.route(`**/api/control/projects/${PROJECT_ID}?*`, (route) => {
+    if (route.request().method() !== 'DELETE') return route.continue()
+    deleted = true
+    return route.fulfill({ status: 204 })
+  })
+  await page.route(`**/api/control/workspaces/${WORKSPACE.workspaceId}/project-summaries`, (route) => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({ projects: [] }),
+  }))
+  await page.goto(`${origin}/projects/${PROJECT_ID}/settings`)
+  await page.getByRole('button', { name: 'Excluir Projeto' }).click()
+  await page.getByLabel('Nome do Projeto').fill('Faturamento')
+  await page.getByRole('button', { name: 'Excluir para sempre' }).click()
+  await page.waitForURL(`**/workspaces/${WORKSPACE.workspaceId}/projects`)
+  await page.goBack()
+  await page.getByText('Carregando o Projeto').waitFor({ state: 'attached' })
+  assert.equal(await page.getByRole('heading', { name: 'Sobre o Projeto' }).count(), 0)
+  assert.equal(await page.getByRole('button', { name: 'Excluir Projeto' }).count(), 0)
+  release()
+  await page.getByRole('heading', { name: 'Projeto indisponível' }).waitFor()
+})
+
 test('a direct Project not-found response clears the settings view', async (t) => {
   const { page, origin } = await withServer(t, 'owner')
   await page.unroute(`**/api/control/projects/${PROJECT_ID}`)

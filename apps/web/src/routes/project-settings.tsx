@@ -15,7 +15,7 @@ import { ProjectUnavailable } from '../features/project/components/project-unava
 import '../features/project/project-settings.css'
 import { rootRoute } from './__root'
 import { FailureNotice, FailureState } from '../app/failure-state'
-import { clearProjectCache, refreshProjectCache } from '../app/query-client'
+import { forgetProject } from '../app/query-client'
 import { workspaceRosterQuery } from '../features/identity-access/membership-api'
 
 import { failureText } from '@conexus/contract'
@@ -103,10 +103,9 @@ function DeletionRecovery({ project, viewer }: Readonly<{ project: ProjectDetail
   const retry = useMutation({
     mutationFn: () => deleteProject(project.projectId, project.name),
     onSuccess: async () => {
-      // After the screen left the Project, so the detail it is leaving is marked stale and not read once more.
+      // After the screen left the Project, so the detail it is leaving is dropped and not read once more.
       await navigate({ to: '/workspaces/$workspaceId/projects', params: { workspaceId: project.workspaceId } })
-      clearProjectCache(project.projectId)
-      refreshProjectCache(project.projectId)
+      forgetProject(project.projectId)
     },
     onError: (error) => setMessage(failureText(error)),
   })
@@ -130,10 +129,9 @@ function DangerZone({ project }: Readonly<{ project: ProjectDetail }>) {
   const remove = useMutation({
     mutationFn: () => deleteProject(project.projectId, confirmName),
     onSuccess: async () => {
-      // After the screen left the Project, so the detail it is leaving is marked stale and not read once more.
+      // After the screen left the Project, so the detail it is leaving is dropped and not read once more.
       await navigate({ to: '/workspaces/$workspaceId/projects', params: { workspaceId: project.workspaceId } })
-      clearProjectCache(project.projectId)
-      refreshProjectCache(project.projectId)
+      forgetProject(project.projectId)
     },
     onError: (error) => setMessage(failureText(error)),
   })
