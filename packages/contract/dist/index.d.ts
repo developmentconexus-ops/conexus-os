@@ -36,7 +36,7 @@ export declare const OPERATIONS: {
             }, import("zod/v4/core").$strip>;
         };
         readonly effects: readonly [];
-        readonly failures: readonly ["IDENTITY_PROVIDER_UNAVAILABLE"];
+        readonly failures: readonly ["IDENTITY_PROVIDER_UNAVAILABLE", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
         readonly malformed: null;
     };
     readonly endSession: {
@@ -102,7 +102,7 @@ export declare const OPERATIONS: {
             }, import("zod/v4/core").$strip>;
         };
         readonly effects: readonly [];
-        readonly failures: readonly [];
+        readonly failures: readonly ["ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
         readonly malformed: {
             readonly workspaceId: "WORKSPACE_NOT_FOUND";
         };
@@ -286,7 +286,7 @@ export declare const OPERATIONS: {
             }, import("zod/v4/core").$strip>;
         };
         readonly effects: readonly [];
-        readonly failures: readonly ["APPLICATION_ACCESS_MANAGE_REQUIRED", "PROJECT_DELETING"];
+        readonly failures: readonly ["APPLICATION_ACCESS_MANAGE_REQUIRED", "PROJECT_DELETING", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
         readonly malformed: {
             readonly projectId: "PROJECT_NOT_FOUND";
         };
@@ -416,7 +416,7 @@ export declare const OPERATIONS: {
             }, import("zod/v4/core").$strip>;
         };
         readonly effects: readonly [];
-        readonly failures: readonly ["INSTALLATION_ADMINISTRATOR_REQUIRED"];
+        readonly failures: readonly ["INSTALLATION_ADMINISTRATOR_REQUIRED", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
         readonly malformed: null;
     };
     readonly addInstallationAdministrator: {
@@ -549,7 +549,7 @@ export declare const OPERATIONS: {
             }, import("zod/v4/core").$strip>], "state">>;
         };
         readonly effects: readonly [];
-        readonly failures: readonly [];
+        readonly failures: readonly ["ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
         readonly malformed: {
             readonly workspaceId: "WORKSPACE_NOT_FOUND";
         };
@@ -582,7 +582,7 @@ export declare const OPERATIONS: {
             }, import("zod/v4/core").$strip>], "state">;
         };
         readonly effects: readonly [];
-        readonly failures: readonly [];
+        readonly failures: readonly ["ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
         readonly malformed: {
             readonly projectId: "PROJECT_NOT_FOUND";
         };
@@ -642,7 +642,7 @@ export declare const OPERATIONS: {
             readonly 204: null;
         };
         readonly effects: readonly [];
-        readonly failures: readonly ["PROJECT_DELETE_DENIED", "PROJECT_NAME_MISMATCH", "PROJECT_BUSY", "PROJECT_DELETION_INCOMPLETE"];
+        readonly failures: readonly ["PROJECT_DELETE_DENIED", "PROJECT_NAME_MISMATCH", "PROJECT_BUSY", "PROJECT_DELETION_INCOMPLETE", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
         readonly malformed: {
             readonly projectId: "PROJECT_NOT_FOUND";
         };
@@ -690,7 +690,7 @@ export declare const OPERATIONS: {
             }, import("zod/v4/core").$strip>;
         };
         readonly effects: readonly [];
-        readonly failures: readonly [];
+        readonly failures: readonly ["ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
         readonly malformed: {
             readonly workspaceId: "WORKSPACE_NOT_FOUND";
         };
@@ -715,7 +715,7 @@ export declare const OPERATIONS: {
             };
         };
         readonly effects: readonly [];
-        readonly failures: readonly ["PROJECT_THUMBNAIL_NOT_FOUND"];
+        readonly failures: readonly ["PROJECT_THUMBNAIL_NOT_FOUND", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
         readonly malformed: {
             readonly projectId: "PROJECT_NOT_FOUND";
         };
@@ -744,7 +744,7 @@ export declare const OPERATIONS: {
             }, import("zod/v4/core").$strip>;
         };
         readonly effects: readonly [];
-        readonly failures: readonly ["INSTALLATION_ADMINISTRATOR_REQUIRED"];
+        readonly failures: readonly ["INSTALLATION_ADMINISTRATOR_REQUIRED", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
         readonly malformed: {
             readonly workspaceId: "WORKSPACE_NOT_FOUND";
         };
@@ -822,7 +822,7 @@ export declare const OPERATIONS: {
         readonly effects: readonly [];
         readonly failures: readonly ["INSTALLATION_ADMINISTRATOR_REQUIRED", "CONNECTOR_PLATFORM_FAILED"];
         readonly malformed: {
-            readonly workspaceId: "CONNECTOR_CONNECTION_NOT_FOUND";
+            readonly workspaceId: "WORKSPACE_NOT_FOUND";
             readonly connectionId: "CONNECTOR_CONNECTION_NOT_FOUND";
         };
     };
@@ -845,7 +845,7 @@ export declare const OPERATIONS: {
         readonly effects: readonly [];
         readonly failures: readonly ["INSTALLATION_ADMINISTRATOR_REQUIRED"];
         readonly malformed: {
-            readonly workspaceId: "CONNECTOR_CONNECTION_NOT_FOUND";
+            readonly workspaceId: "WORKSPACE_NOT_FOUND";
             readonly connectionId: "CONNECTOR_CONNECTION_NOT_FOUND";
         };
     };
@@ -880,7 +880,7 @@ export declare const OPERATIONS: {
             }, import("zod/v4/core").$strip>;
         };
         readonly effects: readonly [];
-        readonly failures: readonly ["CONNECTOR_BINDING_MANAGE_REQUIRED", "PROJECT_DELETING"];
+        readonly failures: readonly ["CONNECTOR_BINDING_MANAGE_REQUIRED", "PROJECT_DELETING", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
         readonly malformed: {
             readonly projectId: "PROJECT_NOT_FOUND";
         };
@@ -976,7 +976,7 @@ export declare const OPERATIONS: {
             }, import("zod/v4/core").$strip>;
         };
         readonly effects: readonly [];
-        readonly failures: readonly ["SOURCE_REVISION_NOT_FOUND", "BUILDER_SOURCE_UNAVAILABLE", "BUILDER_SOURCE_READ_REFUSED", "BUILDER_SOURCE_READ_TREE_TOO_LARGE", "BUILDER_SOURCE_READ_UNSAFE_ENTRY"];
+        readonly failures: readonly ["SOURCE_REVISION_NOT_FOUND", "BUILDER_SOURCE_UNAVAILABLE", "BUILDER_SOURCE_READ_REFUSED", "BUILDER_SOURCE_READ_TREE_TOO_LARGE", "BUILDER_SOURCE_READ_UNSAFE_ENTRY", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
         readonly malformed: {
             readonly projectId: "PROJECT_NOT_FOUND";
         };
@@ -1004,7 +1004,7 @@ export declare const OPERATIONS: {
             }, import("zod/v4/core").$strip>;
         };
         readonly effects: readonly [];
-        readonly failures: readonly ["SOURCE_REVISION_NOT_FOUND", "SOURCE_FILE_NOT_FOUND", "BUILDER_SOURCE_UNAVAILABLE"];
+        readonly failures: readonly ["SOURCE_REVISION_NOT_FOUND", "SOURCE_FILE_NOT_FOUND", "BUILDER_SOURCE_UNAVAILABLE", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
         readonly malformed: {
             readonly projectId: "PROJECT_NOT_FOUND";
         };
@@ -2234,7 +2234,7 @@ export declare const OPERATIONS: {
             }, import("zod/v4/core").$strip>;
         };
         readonly effects: readonly [];
-        readonly failures: readonly ["BUILDER_SESSION_UNAVAILABLE", "PROJECT_DELETING", "BUILDER_SOURCE_UNAVAILABLE"];
+        readonly failures: readonly ["BUILDER_SESSION_UNAVAILABLE", "PROJECT_DELETING", "BUILDER_SOURCE_UNAVAILABLE", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
         readonly malformed: {
             readonly projectId: "PROJECT_NOT_FOUND";
         };
@@ -3451,7 +3451,7 @@ export declare const OPERATIONS: {
             }, import("zod/v4/core").$strip>;
         };
         readonly effects: readonly [];
-        readonly failures: readonly ["BUILDER_CAPACITY_FULL", "PROJECT_DELETING", "ACCOUNT_INACTIVE", "BUILDER_RUN_CREATE_FAILED", "BUILDER_BUSY", "PROJECT_BUSY", "BUILDER_SOURCE_UNAVAILABLE"];
+        readonly failures: readonly ["BUILDER_CAPACITY_FULL", "PROJECT_DELETING", "BUILDER_RUN_CREATE_FAILED", "BUILDER_BUSY", "PROJECT_BUSY", "BUILDER_SOURCE_UNAVAILABLE", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
         readonly malformed: {
             readonly projectId: "PROJECT_NOT_FOUND";
             readonly content: "BUILDER_MESSAGE_REFUSED";
@@ -4070,7 +4070,7 @@ export declare const OPERATIONS: {
             }, import("zod/v4/core").$strip>;
         };
         readonly effects: readonly [];
-        readonly failures: readonly ["PROJECT_DELETING", "ACCOUNT_INACTIVE"];
+        readonly failures: readonly ["PROJECT_DELETING", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
         readonly malformed: {
             readonly projectId: "PROJECT_NOT_FOUND";
             readonly builderRunId: "BUILDER_RUN_NOT_FOUND";
@@ -4127,7 +4127,7 @@ export declare const OPERATIONS: {
             }, import("zod/v4/core").$strip>;
         };
         readonly effects: readonly [];
-        readonly failures: readonly ["BUILDER_TRACE_UNAVAILABLE"];
+        readonly failures: readonly ["BUILDER_TRACE_UNAVAILABLE", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
         readonly malformed: {
             readonly projectId: "PROJECT_NOT_FOUND";
             readonly builderRunId: "BUILDER_RUN_NOT_FOUND";
@@ -4165,7 +4165,7 @@ export declare const OPERATIONS: {
             }, import("zod/v4/core").$strip>;
         };
         readonly effects: readonly [];
-        readonly failures: readonly ["SOURCE_REVISION_NOT_FOUND", "BUILDER_SOURCE_UNAVAILABLE", "BUILDER_SOURCE_READ_REFUSED", "BUILDER_SOURCE_READ_TREE_TOO_LARGE", "BUILDER_SOURCE_READ_UNSAFE_ENTRY"];
+        readonly failures: readonly ["SOURCE_REVISION_NOT_FOUND", "BUILDER_SOURCE_UNAVAILABLE", "BUILDER_SOURCE_READ_REFUSED", "BUILDER_SOURCE_READ_TREE_TOO_LARGE", "BUILDER_SOURCE_READ_UNSAFE_ENTRY", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
         readonly malformed: {
             readonly projectId: "PROJECT_NOT_FOUND";
         };
@@ -4193,7 +4193,7 @@ export declare const OPERATIONS: {
             }, import("zod/v4/core").$strip>;
         };
         readonly effects: readonly [];
-        readonly failures: readonly ["PREVIEW_SUBJECT_NOT_FOUND", "PROJECT_DELETING", "PREVIEW_UNAVAILABLE"];
+        readonly failures: readonly ["PREVIEW_SUBJECT_NOT_FOUND", "PROJECT_DELETING", "PREVIEW_UNAVAILABLE", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
         readonly malformed: {
             readonly projectId: "PROJECT_NOT_FOUND";
         };
@@ -4228,7 +4228,7 @@ export declare const OPERATIONS: {
             }, import("zod/v4/core").$strip>;
         };
         readonly effects: readonly [];
-        readonly failures: readonly [];
+        readonly failures: readonly ["ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
         readonly malformed: null;
         readonly params: null;
         readonly headers: null;
@@ -4264,7 +4264,7 @@ export declare const OPERATIONS: {
             }, import("zod/v4/core").$strip>;
         };
         readonly effects: readonly [];
-        readonly failures: readonly [];
+        readonly failures: readonly ["ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
         readonly malformed: null;
         readonly params: null;
         readonly headers: null;
@@ -4413,7 +4413,7 @@ export declare const OPERATIONS: {
             }, import("zod/v4/core").$strip>;
         };
         readonly effects: readonly [];
-        readonly failures: readonly ["MODEL_LOGIN_UNAVAILABLE"];
+        readonly failures: readonly ["MODEL_LOGIN_UNAVAILABLE", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
         readonly malformed: null;
         readonly params: null;
         readonly headers: null;

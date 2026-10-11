@@ -4,6 +4,8 @@ export declare const SUBJECT_NOT_FOUND: {
     readonly workspaceId: "WORKSPACE_NOT_FOUND";
     readonly projectId: "PROJECT_NOT_FOUND";
 };
+/** What every person admission answers before it looks at its subject: the Account is gone or was deactivated. */
+export declare const ACCOUNT_REFUSALS: readonly ["ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
 export type AccessKind = 'navigation' | 'sign-in' | 'session' | 'sign-out' | 'host-write' | 'hub-entry';
 export type Effect = 'clear-session-cookie';
 export type Binary = Readonly<{

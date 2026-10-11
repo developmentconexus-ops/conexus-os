@@ -3139,7 +3139,7 @@ export declare const listProjectSourceTree: {
         }, z.core.$strip>;
     };
     readonly effects: readonly [];
-    readonly failures: readonly ["SOURCE_REVISION_NOT_FOUND", "BUILDER_SOURCE_UNAVAILABLE", "BUILDER_SOURCE_READ_REFUSED", "BUILDER_SOURCE_READ_TREE_TOO_LARGE", "BUILDER_SOURCE_READ_UNSAFE_ENTRY"];
+    readonly failures: readonly ["SOURCE_REVISION_NOT_FOUND", "BUILDER_SOURCE_UNAVAILABLE", "BUILDER_SOURCE_READ_REFUSED", "BUILDER_SOURCE_READ_TREE_TOO_LARGE", "BUILDER_SOURCE_READ_UNSAFE_ENTRY", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
     readonly malformed: {
         readonly projectId: "PROJECT_NOT_FOUND";
     };
@@ -3167,7 +3167,7 @@ export declare const getProjectSourceFile: {
         }, z.core.$strip>;
     };
     readonly effects: readonly [];
-    readonly failures: readonly ["SOURCE_REVISION_NOT_FOUND", "SOURCE_FILE_NOT_FOUND", "BUILDER_SOURCE_UNAVAILABLE"];
+    readonly failures: readonly ["SOURCE_REVISION_NOT_FOUND", "SOURCE_FILE_NOT_FOUND", "BUILDER_SOURCE_UNAVAILABLE", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
     readonly malformed: {
         readonly projectId: "PROJECT_NOT_FOUND";
     };
@@ -4397,7 +4397,7 @@ export declare const getBuilderSession: {
         }, z.core.$strip>;
     };
     readonly effects: readonly [];
-    readonly failures: readonly ["BUILDER_SESSION_UNAVAILABLE", "PROJECT_DELETING", "BUILDER_SOURCE_UNAVAILABLE"];
+    readonly failures: readonly ["BUILDER_SESSION_UNAVAILABLE", "PROJECT_DELETING", "BUILDER_SOURCE_UNAVAILABLE", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
     readonly malformed: {
         readonly projectId: "PROJECT_NOT_FOUND";
     };
@@ -5614,7 +5614,7 @@ export declare const sendBuilderMessage: {
         }, z.core.$strip>;
     };
     readonly effects: readonly [];
-    readonly failures: readonly ["BUILDER_CAPACITY_FULL", "PROJECT_DELETING", "ACCOUNT_INACTIVE", "BUILDER_RUN_CREATE_FAILED", "BUILDER_BUSY", "PROJECT_BUSY", "BUILDER_SOURCE_UNAVAILABLE"];
+    readonly failures: readonly ["BUILDER_CAPACITY_FULL", "PROJECT_DELETING", "BUILDER_RUN_CREATE_FAILED", "BUILDER_BUSY", "PROJECT_BUSY", "BUILDER_SOURCE_UNAVAILABLE", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
     readonly malformed: {
         readonly projectId: "PROJECT_NOT_FOUND";
         readonly content: "BUILDER_MESSAGE_REFUSED";
@@ -6233,7 +6233,7 @@ export declare const cancelBuilderRun: {
         }, z.core.$strip>;
     };
     readonly effects: readonly [];
-    readonly failures: readonly ["PROJECT_DELETING", "ACCOUNT_INACTIVE"];
+    readonly failures: readonly ["PROJECT_DELETING", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
     readonly malformed: {
         readonly projectId: "PROJECT_NOT_FOUND";
         readonly builderRunId: "BUILDER_RUN_NOT_FOUND";
@@ -6290,7 +6290,7 @@ export declare const getBuilderRunTrace: {
         }, z.core.$strip>;
     };
     readonly effects: readonly [];
-    readonly failures: readonly ["BUILDER_TRACE_UNAVAILABLE"];
+    readonly failures: readonly ["BUILDER_TRACE_UNAVAILABLE", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
     readonly malformed: {
         readonly projectId: "PROJECT_NOT_FOUND";
         readonly builderRunId: "BUILDER_RUN_NOT_FOUND";
@@ -6328,7 +6328,7 @@ export declare const compareProjectSourceRevisions: {
         }, z.core.$strip>;
     };
     readonly effects: readonly [];
-    readonly failures: readonly ["SOURCE_REVISION_NOT_FOUND", "BUILDER_SOURCE_UNAVAILABLE", "BUILDER_SOURCE_READ_REFUSED", "BUILDER_SOURCE_READ_TREE_TOO_LARGE", "BUILDER_SOURCE_READ_UNSAFE_ENTRY"];
+    readonly failures: readonly ["SOURCE_REVISION_NOT_FOUND", "BUILDER_SOURCE_UNAVAILABLE", "BUILDER_SOURCE_READ_REFUSED", "BUILDER_SOURCE_READ_TREE_TOO_LARGE", "BUILDER_SOURCE_READ_UNSAFE_ENTRY", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
     readonly malformed: {
         readonly projectId: "PROJECT_NOT_FOUND";
     };
@@ -6356,7 +6356,7 @@ export declare const launchBuilderPreview: {
         }, z.core.$strip>;
     };
     readonly effects: readonly [];
-    readonly failures: readonly ["PREVIEW_SUBJECT_NOT_FOUND", "PROJECT_DELETING", "PREVIEW_UNAVAILABLE"];
+    readonly failures: readonly ["PREVIEW_SUBJECT_NOT_FOUND", "PROJECT_DELETING", "PREVIEW_UNAVAILABLE", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
     readonly malformed: {
         readonly projectId: "PROJECT_NOT_FOUND";
     };

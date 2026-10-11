@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import type { FailureCode } from './failures.generated.js'
 import { AccountId, GrantId, IdempotencyKey, InvitationId, ProjectId, WorkspaceId } from './ids.js'
-import { operation, SUBJECT_NOT_FOUND } from './operation.js'
+import { ACCOUNT_REFUSALS, operation, SUBJECT_NOT_FOUND } from './operation.js'
 import { WorkspaceName } from './workspace.js'
 
 /** The one parse of an email the Hub accepts: trimmed and lowercased, so a Workspace and an email name one invitation. */
@@ -111,7 +111,7 @@ export const getSession = operation({
   id: 'getSession', summary: 'Read the signed in account, whether it administers the installation, and its Workspaces.', access: 'session', method: 'GET', path: '/api/session',
   params: null, query: null, headers: null, body: null,
   success: { 200: Session },
-  effects: [], failures: ['IDENTITY_PROVIDER_UNAVAILABLE'], malformed: null,
+  effects: [], failures: ['IDENTITY_PROVIDER_UNAVAILABLE', ...ACCOUNT_REFUSALS], malformed: null,
 })
 
 export const endSession = operation({
@@ -125,7 +125,7 @@ export const getWorkspaceRoster = operation({
   id: 'getWorkspaceRoster', summary: 'Read the members and the invitations of a Workspace, and the reader\'s own role.', access: 'session', method: 'GET', path: '/api/control/workspaces/:workspaceId/roster',
   params: workspaceParam, query: null, headers: null, body: null,
   success: { 200: WorkspaceRoster },
-  effects: [], failures: [], malformed: { workspaceId: SUBJECT_NOT_FOUND.workspaceId },
+  effects: [], failures: [...ACCOUNT_REFUSALS], malformed: { workspaceId: SUBJECT_NOT_FOUND.workspaceId },
 })
 
 export const inviteWorkspaceMember = operation({
@@ -133,7 +133,7 @@ export const inviteWorkspaceMember = operation({
   params: workspaceParam, query: null, headers: keyed,
   body: z.object({ email: EmailAddress, role: WorkspaceRole }).strict(),
   success: { 200: WorkspaceInvitationEntry, 201: WorkspaceInvitationEntry },
-  effects: [], failures: ['MEMBERS_MANAGE_REQUIRED', 'ACCOUNT_INACTIVE', 'ACCOUNT_NOT_FOUND'],
+  effects: [], failures: ['MEMBERS_MANAGE_REQUIRED', ...ACCOUNT_REFUSALS],
   malformed: { workspaceId: SUBJECT_NOT_FOUND.workspaceId, email: 'EMAIL_INVALID' },
 })
 
@@ -141,7 +141,7 @@ export const removeWorkspaceMember = operation({
   id: 'removeWorkspaceMember', summary: 'Remove a member from a Workspace, which withdraws every right the membership gave. An owner removes anyone; a member removes only themselves.', access: 'session', method: 'DELETE', path: '/api/control/workspaces/:workspaceId/members/:accountId',
   params: z.object({ workspaceId: WorkspaceId, accountId: AccountId }), query: null, headers: null, body: null,
   success: { 204: null },
-  effects: [], failures: ['MEMBERS_MANAGE_REQUIRED', 'LAST_OWNER', 'ACCOUNT_INACTIVE', 'ACCOUNT_NOT_FOUND'],
+  effects: [], failures: ['MEMBERS_MANAGE_REQUIRED', 'LAST_OWNER', ...ACCOUNT_REFUSALS],
   malformed: { workspaceId: SUBJECT_NOT_FOUND.workspaceId, accountId: 'ROSTER_ENTRY_NOT_FOUND' },
 })
 
@@ -149,7 +149,7 @@ export const cancelWorkspaceInvitation = operation({
   id: 'cancelWorkspaceInvitation', summary: 'Cancel an invitation into a Workspace that nobody has claimed. Owner only.', access: 'session', method: 'DELETE', path: '/api/control/workspaces/:workspaceId/invitations/:invitationId',
   params: z.object({ workspaceId: WorkspaceId, invitationId: InvitationId }), query: null, headers: null, body: null,
   success: { 204: null },
-  effects: [], failures: ['MEMBERS_MANAGE_REQUIRED', 'ACCOUNT_INACTIVE', 'ACCOUNT_NOT_FOUND'],
+  effects: [], failures: ['MEMBERS_MANAGE_REQUIRED', ...ACCOUNT_REFUSALS],
   malformed: { workspaceId: SUBJECT_NOT_FOUND.workspaceId, invitationId: 'ROSTER_ENTRY_NOT_FOUND' },
 })
 
@@ -158,7 +158,7 @@ export const setWorkspaceMemberRole = operation({
   params: z.object({ workspaceId: WorkspaceId, accountId: AccountId }), query: null, headers: null,
   body: z.object({ role: WorkspaceRole }).strict(),
   success: { 200: WorkspaceMemberEntry },
-  effects: [], failures: ['MEMBERS_MANAGE_REQUIRED', 'LAST_OWNER', 'ACCOUNT_INACTIVE', 'ACCOUNT_NOT_FOUND'],
+  effects: [], failures: ['MEMBERS_MANAGE_REQUIRED', 'LAST_OWNER', ...ACCOUNT_REFUSALS],
   malformed: { workspaceId: SUBJECT_NOT_FOUND.workspaceId, accountId: 'ROSTER_ENTRY_NOT_FOUND' },
 })
 
@@ -166,7 +166,7 @@ export const getApplicationAccess = operation({
   id: 'getApplicationAccess', summary: 'Read the address of a Project\'s application and who may use it besides the members of its Workspace. Owner only.', access: 'session', method: 'GET', path: '/api/control/projects/:projectId/application-access',
   params: projectParam, query: null, headers: null, body: null,
   success: { 200: ApplicationAccess },
-  effects: [], failures: ['APPLICATION_ACCESS_MANAGE_REQUIRED', 'PROJECT_DELETING'], malformed: { projectId: SUBJECT_NOT_FOUND.projectId },
+  effects: [], failures: ['APPLICATION_ACCESS_MANAGE_REQUIRED', 'PROJECT_DELETING', ...ACCOUNT_REFUSALS], malformed: { projectId: SUBJECT_NOT_FOUND.projectId },
 })
 
 export const grantApplicationAccess = operation({
@@ -174,11 +174,11 @@ export const grantApplicationAccess = operation({
   params: projectParam, query: null, headers: keyed,
   body: z.object({ email: EmailAddress }).strict(),
   success: { 200: ApplicationInvitationEntry, 201: ApplicationInvitationEntry },
-  effects: [], failures: ['APPLICATION_ACCESS_MANAGE_REQUIRED', 'PROJECT_DELETING', 'DATABASE_BUSY', 'ACCOUNT_INACTIVE', 'ACCOUNT_NOT_FOUND'],
+  effects: [], failures: ['APPLICATION_ACCESS_MANAGE_REQUIRED', 'PROJECT_DELETING', 'DATABASE_BUSY', ...ACCOUNT_REFUSALS],
   malformed: { projectId: SUBJECT_NOT_FOUND.projectId, email: 'EMAIL_INVALID' },
 })
 
-const applicationEntryFailures = ['APPLICATION_ACCESS_MANAGE_REQUIRED', 'PROJECT_DELETING', 'ACCOUNT_INACTIVE', 'ACCOUNT_NOT_FOUND'] as const satisfies readonly FailureCode[]
+const applicationEntryFailures = ['APPLICATION_ACCESS_MANAGE_REQUIRED', 'PROJECT_DELETING', ...ACCOUNT_REFUSALS] as const satisfies readonly FailureCode[]
 
 export const revokeApplicationGrant = operation({
   id: 'revokeApplicationGrant', summary: 'Revoke a person\'s grant to a Project\'s application; their next request to it is refused. Owner only.', access: 'session', method: 'DELETE', path: '/api/control/projects/:projectId/application-access/grants/:grantId',
@@ -198,7 +198,7 @@ export const listInstallationAdministrators = operation({
   id: 'listInstallationAdministrators', summary: 'List the installation administrators and how each became one; installation administrator only.', access: 'session', method: 'GET', path: '/api/control/installation/administrators',
   params: null, query: null, headers: null, body: null,
   success: { 200: z.object({ administrators: z.array(AdministratorEntry) }) },
-  effects: [], failures: ['INSTALLATION_ADMINISTRATOR_REQUIRED'], malformed: null,
+  effects: [], failures: ['INSTALLATION_ADMINISTRATOR_REQUIRED', ...ACCOUNT_REFUSALS], malformed: null,
 })
 
 export const addInstallationAdministrator = operation({

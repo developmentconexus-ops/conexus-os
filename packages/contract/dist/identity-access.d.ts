@@ -207,7 +207,7 @@ export declare const getSession: {
         }, z.core.$strip>;
     };
     readonly effects: readonly [];
-    readonly failures: readonly ["IDENTITY_PROVIDER_UNAVAILABLE"];
+    readonly failures: readonly ["IDENTITY_PROVIDER_UNAVAILABLE", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
     readonly malformed: null;
 };
 export declare const endSession: {
@@ -273,7 +273,7 @@ export declare const getWorkspaceRoster: {
         }, z.core.$strip>;
     };
     readonly effects: readonly [];
-    readonly failures: readonly [];
+    readonly failures: readonly ["ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
     readonly malformed: {
         readonly workspaceId: "WORKSPACE_NOT_FOUND";
     };
@@ -457,7 +457,7 @@ export declare const getApplicationAccess: {
         }, z.core.$strip>;
     };
     readonly effects: readonly [];
-    readonly failures: readonly ["APPLICATION_ACCESS_MANAGE_REQUIRED", "PROJECT_DELETING"];
+    readonly failures: readonly ["APPLICATION_ACCESS_MANAGE_REQUIRED", "PROJECT_DELETING", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
     readonly malformed: {
         readonly projectId: "PROJECT_NOT_FOUND";
     };
@@ -587,7 +587,7 @@ export declare const listInstallationAdministrators: {
         }, z.core.$strip>;
     };
     readonly effects: readonly [];
-    readonly failures: readonly ["INSTALLATION_ADMINISTRATOR_REQUIRED"];
+    readonly failures: readonly ["INSTALLATION_ADMINISTRATOR_REQUIRED", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
     readonly malformed: null;
 };
 export declare const addInstallationAdministrator: {

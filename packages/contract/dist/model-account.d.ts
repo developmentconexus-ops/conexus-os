@@ -104,7 +104,7 @@ export declare const listAvailableModels: {
         }, z.core.$strip>;
     };
     readonly effects: readonly [];
-    readonly failures: readonly [];
+    readonly failures: readonly ["ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
     readonly malformed: null;
     readonly params: null;
     readonly headers: null;
@@ -140,7 +140,7 @@ export declare const listModelAccounts: {
         }, z.core.$strip>;
     };
     readonly effects: readonly [];
-    readonly failures: readonly [];
+    readonly failures: readonly ["ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
     readonly malformed: null;
     readonly params: null;
     readonly headers: null;
@@ -289,7 +289,7 @@ export declare const getGoogleModelConnection: {
         }, z.core.$strip>;
     };
     readonly effects: readonly [];
-    readonly failures: readonly ["MODEL_LOGIN_UNAVAILABLE"];
+    readonly failures: readonly ["MODEL_LOGIN_UNAVAILABLE", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
     readonly malformed: null;
     readonly params: null;
     readonly headers: null;
