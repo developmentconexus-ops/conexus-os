@@ -27,7 +27,7 @@ test('a member of the Workspace reads, creates and builds every Project in it', 
   assert.deepEqual(await store.readPreviewSubject({ accountId: ID.member, projectId }), { lastPreviewSourceRevision: null, lastPreviewArtifactRevisionId: null, lastPreviewArtifactDigest: null })
 
   await assert.rejects(store.listBuilderRuns({ accountId: ID.outsider, projectId }), { id: 'PROJECT_NOT_FOUND' })
-  assert.equal(await store.admitSourceRevision({ accountId: ID.outsider, projectId, sourceRevision: BASE, readMain: async () => BASE }), false)
+  await assert.rejects(store.admitSourceRevision({ accountId: ID.outsider, projectId, sourceRevision: BASE, readMain: async () => BASE }), { id: 'PROJECT_NOT_FOUND' })
   await assert.rejects(store.readPreviewSubject({ accountId: ID.outsider, projectId }), { id: 'PROJECT_NOT_FOUND' })
   await assert.rejects(send(store, ID.outsider, projectId, 'two'), { id: 'PROJECT_NOT_FOUND' })
   await assert.rejects(store.requestBuilderRunCancellation({ accountId: ID.outsider, projectId, builderRunId: created.builderRunId }), { id: 'PROJECT_NOT_FOUND' })

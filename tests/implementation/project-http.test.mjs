@@ -28,12 +28,17 @@ const listener = async (t, { store = {}, thumbnailReader } = {}, authenticated =
 const get = (app, url) => app.inject({ method: 'GET', url, headers: { cookie } })
 const problem = (response) => `${response.statusCode} ${response.json().code}`
 
-test('listProjects and getProject answer the store, 404 a hidden project, and 404 a malformed id before the store', async (t) => {
+test('listProjects and getProject answer the store, pass its refusal of a hidden project, and 404 a malformed id before the store', async (t) => {
+  const { Failure } = await import(hubModuleUrl('platform/failure.js'))
   let disclose = true
   const calls = []
   const app = await listener(t, { store: {
     listProjects: async (input) => { calls.push(input); return disclose ? [summary] : [] },
-    getProject: async (input) => { calls.push(input); return disclose ? { ...summary, projectRevision: REVISION } : null },
+    getProject: async (input) => {
+      calls.push(input)
+      if (!disclose) throw new Failure('PROJECT_NOT_FOUND')
+      return { ...summary, projectRevision: REVISION }
+    },
   } })
   assert.deepEqual((await get(app, `/api/control/workspaces/${WORKSPACE}/projects`)).json(), [summary])
   assert.deepEqual((await get(app, `/api/control/projects/${PROJECT}`)).json(), { ...summary, projectRevision: REVISION })
