@@ -89,7 +89,7 @@ test('0072 refuses, by name, an open deletion whose Project is already gone, and
       VALUES ('c0000000-0000-4000-8000-000000000003', 'b0000000-0000-4000-8000-000000000001', 'Still here', 'NEW', repeat('a', 40), 'revision');
     INSERT INTO project.project_deletion(project_id, workspace_id, name, requested_by, purged_at, completed_at) VALUES
       ('c0000000-0000-4000-8000-000000000001', 'b0000000-0000-4000-8000-000000000001', 'Stranded', 'a0000000-0000-4000-8000-000000000001', NULL, NULL),
-      ('c0000000-0000-4000-8000-000000000002', 'b0000000-0000-4000-8000-000000000001', 'Completed', 'a0000000-0000-4000-8000-000000000001', clock_timestamp(), clock_timestamp()),
+      ('c0000000-0000-4000-8000-000000000002', 'b0000000-0000-4000-8000-000000000001', 'Completed', 'a0000000-0000-4000-8000-000000000001', clock_timestamp() + interval '1 minute', clock_timestamp() + interval '1 minute'),
       ('c0000000-0000-4000-8000-000000000003', 'b0000000-0000-4000-8000-000000000001', 'Still here', 'a0000000-0000-4000-8000-000000000001', NULL, NULL);
   `)
   const upgrade = () => runMigrations({ connectionString, migrations: corpus, catalogSnapshot: null }).then((result) => result.verdict, (error) => error.message)
