@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { resolve } from 'node:path'
 import test from 'node:test'
 import ts from 'typescript'
-import { findings, staleSqlDependencies, violations } from '../../scripts/check-boundaries.mjs'
+import { GATE_OPENER, findings, staleSqlDependencies, violations } from '../../scripts/check-boundaries.mjs'
 
 const root = resolve(import.meta.dirname, '../..')
 const fixture = (name, options = {}) => {
@@ -100,13 +100,23 @@ test('the rules of the real register name the modules that may write the authori
   ])
 })
 
-test('every reference to the openGate symbol outside the gate readers is found, through any import form', () => {
+test('every reference to a gate opener outside the modules listed for it is found, through any import form', () => {
   const prefix = 'tests/fixtures/census-boundaries/gate-uses.ts#'
-  const gate = { declaration: /gate-db\.ts$/, readers: [] }
-  assert.deepEqual(fixture('gate-uses', { gate }).gateReferences.sort(), [
-    '<module>', '<module>', '<module>', 'aliased', 'bracket', 'destructuredRenamed', 'destructuredShorthand', 'dynamic', 'named', 'namespaced',
-  ].map((name) => (name === '<module>' ? `${prefix}<module>` : `${prefix}${name}`)).sort())
-  assert.deepEqual(fixture('gate-uses', { gate: { ...gate, readers: ['tests/fixtures/census-boundaries/gate-uses.ts'] } }).gateReferences, [])
+  const self = 'tests/fixtures/census-boundaries/gate-uses.ts'
+  const found = (readers) => fixture('gate-uses', { gate: { declaration: /gate-db\.ts$/, readers } }).gateReferences.map((entry) => entry.slice(prefix.length)).sort()
+  const write = ['<module>', '<module>', '<module>', 'aliased', 'bracket', 'destructuredRenamed', 'destructuredShorthand', 'dynamic', 'named', 'namespaced']
+  const read = ['<module>', 'readDestructured', 'readNamed', 'readNamespaced']
+  assert.deepEqual(found({ openGate: [], openReadGate: [] }), [...write, ...read].sort())
+  assert.deepEqual(found({ openGate: [self], openReadGate: [] }), read)
+  assert.deepEqual(found({ openGate: [], openReadGate: [self] }), write)
+  assert.deepEqual(found({ openGate: [self], openReadGate: [self] }), [])
+})
+
+test('the read gate is opened by admission alone, and the command and authentication gates by admission and authentication', () => {
+  assert.deepEqual(GATE_OPENER.readers, {
+    openGate: ['apps/hub/src/identity-access/admission.ts', 'apps/hub/src/identity-access/authentication.ts'],
+    openReadGate: ['apps/hub/src/identity-access/admission.ts'],
+  })
 })
 
 test('an update or a delete of a split table must compare one of its register key columns', () => {

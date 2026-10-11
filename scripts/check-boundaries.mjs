@@ -25,8 +25,14 @@ export const AUTHORITY_TABLE_WRITERS = Object.freeze([
   Object.freeze({ table: 'project.project', verbs: Object.freeze(['DELETE']), modules: Object.freeze(['apps/hub/src/project/deletion.ts']) }),
   Object.freeze({ table: 'platform.operation_receipt', verbs: Object.freeze(['DELETE']), modules: Object.freeze(['apps/hub/src/platform/receipt.ts']) }),
 ])
-// The only module that may reach the transaction behind a gate.
-export const GATE_OPENER = Object.freeze({ declaration: /apps\/hub\/src\/platform\/db\.ts$/, readers: Object.freeze(['apps/hub/src/identity-access/admission.ts', 'apps/hub/src/identity-access/authentication.ts']) })
+// Each opener reaches the transaction behind a gate, and only the modules listed for it may name it.
+export const GATE_OPENER = Object.freeze({
+  declaration: /apps\/hub\/src\/platform\/db\.ts$/,
+  readers: Object.freeze({
+    openGate: Object.freeze(['apps/hub/src/identity-access/admission.ts', 'apps/hub/src/identity-access/authentication.ts']),
+    openReadGate: Object.freeze(['apps/hub/src/identity-access/admission.ts']),
+  }),
+})
 export const RESPONSE_EDGE = Object.freeze(['apps/web/src/app/http.ts'])
 
 const declaredIn = (symbol, pattern) => (symbol?.declarations ?? []).some((declaration) => pattern.test(declaration.getSourceFile().fileName))
@@ -185,15 +191,15 @@ const writesOutside = (text, path, rules) => {
     .map(({ verb, table }) => `${verb} ${table}`))
 }
 
-// The symbol openGate is declared once, in the data module. Every Identifier or member name that resolves to it,
-// through an import alias, a namespace, a destructuring or a dynamic import, is a reference.
-const isGateReference = (checker, node, declaration) => {
-  if (!ts.isIdentifier(node) && !ts.isStringLiteralLike(node)) return false
+// Each gate opener is declared once, in the data module. Every Identifier or member name that resolves to one,
+// through an import alias, a namespace, a destructuring or a dynamic import, is a reference to it.
+const gateOpenerOf = (checker, node, gate) => {
+  if (!ts.isIdentifier(node) && !ts.isStringLiteralLike(node)) return undefined
   const element = ts.isBindingElement(node.parent) && ts.isObjectBindingPattern(node.parent.parent) && (node.parent.propertyName ?? node.parent.name) === node ? node.parent : undefined
-  let symbol = element ? checker.getTypeAtLocation(element.parent).getProperty('openGate') : checker.getSymbolAtLocation(node)
-  if (!symbol || (element && node.text !== 'openGate')) return false
+  let symbol = element ? checker.getTypeAtLocation(element.parent).getProperty(node.text) : checker.getSymbolAtLocation(node)
+  if (!symbol) return undefined
   if (symbol.flags & ts.SymbolFlags.Alias) symbol = checker.getAliasedSymbol(symbol)
-  return symbol.name === 'openGate' && declaredIn(symbol, declaration)
+  return Object.hasOwn(gate.readers, symbol.name) && declaredIn(symbol, gate.declaration) ? symbol.name : undefined
 }
 
 export const findings = (program, { root = repo, pgEdge = DATABASE_EDGE, responseEdge = RESPONSE_EDGE, authorityWriters = AUTHORITY_TABLE_WRITERS, splitTables = {}, gate = GATE_OPENER, sqlTables = null, sqlOwner = hubOwner, sqlTagDeclaration = SQL_DECLARATION, sqlDependencies = [], matchedSqlDependencies = new Set() } = {}) => {
@@ -221,7 +227,8 @@ export const findings = (program, { root = repo, pgEdge = DATABASE_EDGE, respons
       if (!pgEdge.includes(path) && referencesMember(checker, node, 'query', isPgQuery) && !resultIsDiscarded(node)) result.pgQueryRows.push(`${path}#${enclosingName(node)}`)
       if (!responseEdge.includes(path) && referencesMember(checker, node, 'json', isResponseJson)) result.webResponseJson.push(`${path}#${enclosingName(node)}`)
       if (ts.isImportDeclaration(node) && !pgEdge.includes(path) && ts.isStringLiteral(node.moduleSpecifier) && node.moduleSpecifier.text === 'pg') result.pgImportFiles.push(path)
-      if (!gate.readers.includes(path) && !gate.declaration.test(file.fileName) && isGateReference(checker, node, gate.declaration)) result.gateReferences.push(`${path}#${enclosingName(node) === '<module>' ? moduleVariable(node) : enclosingName(node)}`)
+      const opener = gate.declaration.test(file.fileName) ? undefined : gateOpenerOf(checker, node, gate)
+      if (opener && !gate.readers[opener].includes(path)) result.gateReferences.push(`${path}#${enclosingName(node) === '<module>' ? moduleVariable(node) : enclosingName(node)}`)
       if (ts.isTaggedTemplateExpression(node) && ((ts.isIdentifier(node.tag) && node.tag.text === 'sql') || isSqlTag(checker, node.tag, sqlTagDeclaration))) {
         const text = joinTemplate(templateParts(node.template))
         const owner = enclosingName(node) === '<module>' ? moduleVariable(node) : enclosingName(node)

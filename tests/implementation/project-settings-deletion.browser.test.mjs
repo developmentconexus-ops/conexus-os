@@ -71,6 +71,32 @@ test('a direct Project not-found response clears the settings view', async (t) =
   assert.equal(await page.getByRole('heading', { name: 'Sobre o Projeto' }).count(), 0)
 })
 
+test('a Project that is not found is unavailable, with no retry, on every Project route', async (t) => {
+  const { page, origin } = await withServer(t, 'owner')
+  await page.unroute(`**/api/control/projects/${PROJECT_ID}`)
+  await page.route(`**/api/control/projects/${PROJECT_ID}`, (route) => route.fulfill({ status: 404, contentType: 'application/problem+json', body: JSON.stringify({
+    type: 'urn:conexus:problem:PROJECT_NOT_FOUND', title: 'PROJECT_NOT_FOUND', status: 404, code: 'PROJECT_NOT_FOUND',
+  }) }))
+  const pages = ['/settings', '/settings/access', '/integrations']
+  const routes = [...pages, '', '/c/30000000-0000-4000-8000-000000000001']
+  const seen = []
+  for (const path of routes) {
+    await page.goto(`${origin}/projects/${PROJECT_ID}${path}`)
+    await page.getByRole('heading', { name: 'Projeto indisponível' }).waitFor()
+    seen.push({
+      path,
+      text: await page.getByText('Não encontramos esse Projeto.').count(),
+      retry: await page.getByRole('button', { name: /Tentar/ }).count(),
+      unreadable: await page.getByText('não veio do Conexus').count(),
+    })
+  }
+  assert.deepEqual(seen, routes.map((path) => ({ path, text: 1, retry: 0, unreadable: 0 })))
+  for (const path of pages) {
+    await page.goto(`${origin}/projects/${PROJECT_ID}${path}`)
+    await page.getByRole('link', { name: 'Ver meus Workspaces' }).waitFor()
+  }
+})
+
 test('a deleting Project stays in its Workspace list without live activity', async (t) => {
   const { page, origin } = await withServer(t, 'member')
   await page.route(`**/api/control/workspaces/${WORKSPACE.workspaceId}/project-summaries`, (route) => route.fulfill({

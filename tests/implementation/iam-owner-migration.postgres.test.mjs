@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
+import { catalogDigest, readCatalog } from '../../scripts/hub-catalog.mjs'
 import { loadHubMigrationFiles, runMigrations } from '../../scripts/run-hub-migrations.mjs'
 import { createEmptyDatabase, query, withClient } from './hub-database.mjs'
 
@@ -194,6 +195,59 @@ test('0070 commits in each of two databases of one cluster, and the roles outliv
   const result = await runMigrations({ connectionString: second.connectionString, migrations, catalogSnapshot: null })
   assert.deepEqual({ verdict: result.verdict, appliedNow: result.appliedNow }, { verdict: 'PASS', appliedNow: ['0070'] })
   assert.equal(await dependenciesOnOldRoles(second.connectionString), 0)
+})
+
+const RETIRED_ROLES = "'hub_reader', 'hub_command', 'iam_rls', 'hub_builder_ingress'"
+const beforeHubAuthority = corpus.filter(({ version }) => version < '0073')
+
+const beforeAuthority = async (t, prefix) => {
+  const fixture = await createEmptyDatabase(t, prefix)
+  await runMigrations({ connectionString: fixture.connectionString, migrations: beforeHubAuthority, catalogSnapshot: null })
+  return fixture
+}
+
+const stateOf = async (connectionString) => ({
+  catalog: catalogDigest(await withClient(connectionString, readCatalog)),
+  ledger: (await query(connectionString, 'SELECT max(version) AS version FROM iam.schema_migration')).rows[0].version,
+  held: (await query(connectionString, `SELECT count(*)::int AS count FROM pg_shdepend
+    WHERE dbid = (SELECT oid FROM pg_database WHERE datname = current_database())
+      AND refclassid = 'pg_authid'::regclass
+      AND refobjid IN (SELECT oid FROM pg_roles WHERE rolname IN (${RETIRED_ROLES}))`)).rows[0].count,
+})
+
+const refusal = (run) => run.then(() => 'PASS', (error) => error.message)
+const usedBy = (database) => `HUB_AUTHORITY_ROLE_USED_BY_ANOTHER_DATABASE: hub_builder_ingress in ${database}, hub_command in ${database}, hub_reader in ${database}, iam_rls in ${database}`
+
+test('0073 refuses a cluster where another database still depends on a retired role, in either order, and leaves the refused database as it was', async (t) => {
+  const first = await beforeAuthority(t, 'conexus_authority_first')
+  const second = await beforeAuthority(t, 'conexus_authority_second')
+  const before = { first: await stateOf(first.connectionString), second: await stateOf(second.connectionString) }
+  assert.deepEqual([before.first.ledger, before.second.ledger], ['0072', '0072'])
+
+  assert.equal(await refusal(runMigrations({ connectionString: first.connectionString, migrations: corpus })), usedBy(second.database))
+  assert.equal(await refusal(runMigrations({ connectionString: second.connectionString, migrations: corpus })), usedBy(first.database))
+  assert.deepEqual({ first: await stateOf(first.connectionString), second: await stateOf(second.connectionString) }, before)
+
+  await first.admin.query(`DROP DATABASE "${first.database}" WITH (FORCE)`)
+  const alone = await runMigrations({ connectionString: second.connectionString, migrations: corpus })
+  assert.deepEqual({ verdict: alone.verdict, appliedNow: alone.appliedNow }, { verdict: 'PASS', appliedNow: corpus.filter(({ version }) => version >= '0073').map(({ version }) => version) })
+  assert.deepEqual((await query(second.connectionString, `SELECT rolname FROM pg_roles WHERE rolname IN (${RETIRED_ROLES})`)).rows, [])
+})
+
+test('0073 refuses, by name, a dependency on a retired role that no migration created, and leaves the database as it was', async (t) => {
+  const { connectionString } = await beforeAuthority(t, 'conexus_authority_unexpected')
+  await query(connectionString, `
+    CREATE FUNCTION iam.stray() RETURNS integer LANGUAGE sql AS 'SELECT 1';
+    ALTER FUNCTION iam.stray() OWNER TO iam_rls;
+    GRANT EXECUTE ON FUNCTION iam.stray() TO hub_reader;
+  `)
+  const before = await stateOf(connectionString)
+
+  assert.equal(
+    await refusal(runMigrations({ connectionString, migrations: corpus })),
+    'HUB_AUTHORITY_ROLE_DEPENDENCY_UNEXPECTED: hub_reader on function iam.stray(), iam_rls on function iam.stray()',
+  )
+  assert.deepEqual(await stateOf(connectionString), before)
 })
 
 const HOST_SESSION_COLUMNS = ['token_digest', 'kind', 'account_id', 'started_at', 'absolute_expires_at', 'project_id', 'artifact_revision_id', 'parent_digest', 'provider_refresh_token', 'provider_checked_at', 'idle_expires_at']

@@ -101,13 +101,13 @@ test('an artifact with a server tree reaches its Preview only after its migratio
   await failed.start()
   await failed.service.close()
   assert.deepEqual(failed.calls.filter(([kind]) => kind === 'settleBuild'), [['settleBuild', failed.result(), 'APPLICATION_MIGRATION_FAILED']])
-  assert.deepEqual(failed.diagnostics.map(({ code, outcome, detail }) => [code, outcome, detail]), [['APPLICATION_MIGRATION_FAILED', 'BUILD_FAILED', undefined]])
+  assert.deepEqual(failed.diagnostics.map(({ code, outcome, detail }) => [code, outcome, detail]), [['APPLICATION_MIGRATION_FAILED', 'BUILD_FAILED', '001_notes.sql, SQLSTATE 42P01']])
 
   const diverged = await harness(t, { build: withServerTree, applicationServer: { prepare: async () => ({ ok: false, error: { code: 'APPLICATION_MIGRATION_HISTORY_DIVERGED', migration: '001_notes.sql' } }) } })
   await diverged.start()
   await diverged.service.close()
   assert.deepEqual(diverged.calls.filter(([kind]) => kind === 'settleBuild'), [['settleBuild', diverged.result(), 'APPLICATION_MIGRATION_HISTORY_DIVERGED']])
-  assert.deepEqual(diverged.diagnostics.map(({ code, outcome, detail }) => [code, outcome, detail]), [['APPLICATION_MIGRATION_HISTORY_DIVERGED', 'BUILD_FAILED', undefined]])
+  assert.deepEqual(diverged.diagnostics.map(({ code, outcome, detail }) => [code, outcome, detail]), [['APPLICATION_MIGRATION_HISTORY_DIVERGED', 'BUILD_FAILED', '001_notes.sql']])
 
   const reset = await harness(t, { build: withServerTree, applicationServer: { prepare: async () => ({ ok: true, result: { reset: true, applied: ['001_notes.sql'] } }) } })
   await reset.start()

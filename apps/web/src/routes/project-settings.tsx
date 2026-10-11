@@ -11,12 +11,13 @@ import { AccessGate } from '../app/access-gate'
 import { Shell } from '../app/shell'
 import { listProjectSummaries, type ProjectDetail } from '@conexus/contract'
 import { deleteProject, projectQuery } from '../features/project/api'
+import { ProjectUnavailable } from '../features/project/components/project-unavailable'
 import '../features/project/project-settings.css'
 import { rootRoute } from './__root'
 import { FailureState } from '../app/failure-state'
 import { workspaceRosterQuery } from '../features/identity-access/membership-api'
 
-import { failureText, isFailure } from '@conexus/contract'
+import { failureText } from '@conexus/contract'
 export const projectSettingsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/projects/$projectId/settings',
@@ -30,8 +31,8 @@ function ProjectSettingsRoute() {
     if (project.isSuccess && project.data.kind === 'found') return <ProjectSettingsLoaded context={context} project={project.data.project} />
     return <Shell context={context}><div className="cx-page cx-page--narrow">
       {project.isPending && <div className="cx-page-head" aria-busy="true"><Skeleton className="cx-skeleton-line" /><span className="sr-only" role="status">Carregando o Projeto</span></div>}
-      {project.isError && <ProjectUnavailable error={project.error} onRetry={() => void project.refetch()} />}
-      {project.isSuccess && <ProjectUnavailable error={null} onRetry={() => void project.refetch()} />}
+      {project.isError && <FailureState title="Não foi possível carregar o Projeto" error={project.error} onRetry={() => void project.refetch()} />}
+      {project.isSuccess && project.data.kind === 'not-found' && <ProjectUnavailable failure={project.data.failure} />}
     </div></Shell>
   }}</AccessGate>
 }
@@ -42,16 +43,6 @@ function ProjectSettingsLoaded({ context, project }: Readonly<{ context: import(
   return <Shell context={context} scope={workspace ? { workspace, project } : undefined}>
     <div className="cx-page cx-page--narrow"><About project={project} owner={roster.data?.viewerRole === 'owner'} /></div>
   </Shell>
-}
-
-function ProjectUnavailable({ error, onRetry }: Readonly<{ error: unknown | null; onRetry: () => void }>) {
-  const hidden = error === null || isFailure(error, 'PROJECT_NOT_FOUND')
-  if (!hidden) return <FailureState title="Não foi possível carregar o Projeto" error={error} onRetry={onRetry} />
-  return <div className="cx-state" role="alert">
-    <h2>Projeto indisponível</h2>
-    <p>{error === null ? 'Não encontramos esse Projeto.' : failureText(error)}</p>
-    <Button as={Link} to="/workspaces" variant="outline">Ver meus Workspaces</Button>
-  </div>
 }
 
 function About({ project, owner }: Readonly<{ project: ProjectDetail; owner: boolean }>) {

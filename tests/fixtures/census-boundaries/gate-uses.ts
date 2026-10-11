@@ -1,4 +1,4 @@
-import { openGate } from './gate-db.js'
+import { openGate, openReadGate } from './gate-db.js'
 import { openGate as renamed, other } from './gate-db.js'
 import * as db from './gate-db.js'
 
@@ -17,4 +17,10 @@ export const destructuredShorthand = async () => {
   const { openGate: _unused } = await import('./gate-db.js')
   return _unused
 }
-export const unrelated = () => other(1) + (({ openGate: 2 }).openGate)
+export const readNamed = () => openReadGate(1)
+export const readNamespaced = () => db.openReadGate(1)
+export const readDestructured = async () => {
+  const { openReadGate: opened } = await import('./gate-db.js')
+  return opened(1)
+}
+export const unrelated = () => other(1) + (({ openGate: 2 }).openGate) + (({ openReadGate: 3 }).openReadGate)

@@ -1,16 +1,15 @@
-import { Button } from '@mastra/playground-ui/components/Button'
 import { Skeleton } from '@mastra/playground-ui/components/Skeleton'
 import { useQuery } from '@tanstack/react-query'
-import { createRoute, Link } from '@tanstack/react-router'
+import { createRoute } from '@tanstack/react-router'
 import { AccessGate } from '../app/access-gate'
 import { Shell } from '../app/shell'
 import { IntegrationsScreen } from '../features/connector/components/integrations-screen'
 import { projectQuery } from '../features/project/api'
+import { ProjectUnavailable } from '../features/project/components/project-unavailable'
 import '../features/project/project-settings.css'
 import { rootRoute } from './__root'
 import { FailureState } from '../app/failure-state'
 
-import { failureText, isFailure } from '@conexus/contract'
 export const projectIntegrationsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/projects/$projectId/integrations',
@@ -26,8 +25,8 @@ function ProjectIntegrationsRoute() {
     return <Shell context={context} scope={projectDetail && workspace ? { workspace, project: projectDetail } : undefined}>
       <div className="cx-page cx-page--narrow">
         {project.isPending && <div className="cx-page-head" aria-busy="true"><Skeleton className="cx-skeleton-line" /><span className="sr-only" role="status">Carregando o Projeto</span></div>}
-        {project.isError && <ProjectUnavailable error={project.error} onRetry={() => void project.refetch()} />}
-        {project.isSuccess && project.data.kind === 'not-found' && <ProjectUnavailable error={null} onRetry={() => void project.refetch()} />}
+        {project.isError && <FailureState title="Não foi possível carregar o Projeto" error={project.error} onRetry={() => void project.refetch()} />}
+        {project.isSuccess && project.data.kind === 'not-found' && <ProjectUnavailable failure={project.data.failure} />}
         {project.isSuccess && project.data.kind === 'found' && project.data.project.state === 'deleting' && <div className="cx-state" role="status">
           <h2>Exclusão de {project.data.project.name} em andamento</h2>
           <p>As integrações ficam indisponíveis enquanto o Projeto é excluído.</p>
@@ -44,14 +43,4 @@ function ProjectIntegrationsRoute() {
       </div>
     </Shell>
   }}</AccessGate>
-}
-
-function ProjectUnavailable({ error, onRetry }: Readonly<{ error: unknown; onRetry: () => void }>) {
-  const hidden = isFailure(error, 'PROJECT_NOT_FOUND')
-  if (!hidden) return <FailureState title="Não foi possível carregar o Projeto" error={error} onRetry={onRetry} />
-  return <div className="cx-state" role="alert">
-    <h2>Projeto indisponível</h2>
-    <p>{failureText(error)}</p>
-    <Button as={Link} to="/workspaces" variant="outline">Ver meus Workspaces</Button>
-  </div>
 }

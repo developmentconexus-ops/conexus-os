@@ -2,7 +2,7 @@ import { call, href, query } from '../../app/http'
 import { routeParam } from '../../app/route-params'
 import {
   createProject as createProjectOperation, deleteProject as deleteProjectOperation,
-  isFailure, ProjectId, listProjects, getProject, listProjectSummaries, getProjectThumbnail, WorkspaceId, type IdempotencyKey,
+  isFailure, ProjectId, listProjects, getProject, listProjectSummaries, getProjectThumbnail, WorkspaceId, type IdempotencyKey, type ProjectDetail, type ReceivedFailure,
 } from '@conexus/contract'
 
 const noInput = { query: undefined, headers: undefined, body: undefined } as const
@@ -10,7 +10,7 @@ const projectParams = (projectId: string) => ({ projectId: routeParam(ProjectId,
 const workspaceParams = (workspaceId: string) => ({ workspaceId: routeParam(WorkspaceId, workspaceId) })
 
 export const projectsQuery = (workspaceId: string) => query(listProjects, { params: workspaceParams(workspaceId), ...noInput })
-export type ProjectRead = Readonly<{ kind: 'found'; project: import('@conexus/contract').ProjectDetail } | { kind: 'not-found' }>
+export type ProjectRead = Readonly<{ kind: 'found'; project: ProjectDetail } | { kind: 'not-found'; failure: ReceivedFailure }>
 
 export const projectQuery = (projectId: string) => {
   const read = query(getProject, { params: projectParams(projectId), ...noInput })
@@ -20,7 +20,7 @@ export const projectQuery = (projectId: string) => {
       try {
         return { kind: 'found', project: await read.queryFn(context) }
       } catch (error) {
-        if (isFailure(error, 'PROJECT_NOT_FOUND')) return { kind: 'not-found' }
+        if (isFailure(error, 'PROJECT_NOT_FOUND')) return { kind: 'not-found', failure: error }
         throw error
       }
     },

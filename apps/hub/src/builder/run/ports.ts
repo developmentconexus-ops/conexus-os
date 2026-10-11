@@ -91,7 +91,7 @@ export type SettledNote = Readonly<{
   outcome: 'SOURCE_BASE_MOVED' | 'RUN_NOT_FINISHED' | 'CANDIDATE_REFUSED' | 'BUILD_FAILED' | 'PLATFORM_FAILED' | 'PREVIEW_DATA_RESET' | 'BOOT_PROBLEMS'
   // `main` after the run: its base when nothing was admitted, its result when admitted.
   sourceRevision: SourceRevision
-  // The Project's own diagnostic, such as the database's error for its migration.
+  // The Project's own diagnostic, such as the migration the runner refused and its SQLSTATE.
   detail?: string
 }>
 

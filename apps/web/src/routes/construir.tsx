@@ -10,7 +10,7 @@ import { projectQuery } from '../features/project/api'
 import type { Session } from '@conexus/contract'
 import { rootRoute } from './__root'
 
-import { failureText, isFailure, isRetryable } from '@conexus/contract'
+import { failureText, isRetryable } from '@conexus/contract'
 // The chat, editor and diff code is most of the application's weight, so it loads when Construir opens.
 const Construir = lazy(() => import('../features/builder/construir/construir').then((module) => ({ default: module.Construir })))
 
@@ -30,14 +30,13 @@ function ProjectFrame({ projectId, children }: Readonly<{ projectId: string; chi
 function ProjectScope({ context, projectId, children }: Readonly<{ context: Session; projectId: string; children: ReactNode }>) {
   const project = useQuery(projectQuery(projectId))
   if (project.isError) {
-    const hidden = isFailure(project.error, 'PROJECT_NOT_FOUND')
-    return <Shell context={context}><Status title={hidden ? 'Projeto indisponível' : 'Não foi possível abrir o Projeto'}>
+    return <Shell context={context}><Status title="Não foi possível abrir o Projeto">
       <p>{failureText(project.error)}</p>
-      {!hidden && isRetryable(project.error) && <button type="button" onClick={() => void project.refetch()}>Tentar novamente</button>}
+      {isRetryable(project.error) && <button type="button" onClick={() => void project.refetch()}>Tentar novamente</button>}
     </Status></Shell>
   }
   if (project.isSuccess && project.data.kind === 'not-found') {
-    return <Shell context={context}><Status title="Projeto indisponível"><p>Não encontramos esse Projeto.</p></Status></Shell>
+    return <Shell context={context}><Status title="Projeto indisponível"><p>{failureText(project.data.failure)}</p></Status></Shell>
   }
   if (project.isSuccess && project.data.kind === 'found' && project.data.project.state === 'deleting') {
     return <Shell context={context}><Status title="Exclusão do Projeto em andamento" /></Shell>
