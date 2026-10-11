@@ -390,14 +390,6 @@
       "action": "NONE"
     },
     {
-      "code": "CONVERSATION_CONFLICT",
-      "category": "USER",
-      "status": 409,
-      "audience": "person",
-      "message": "Esse identificador de conversa já está em uso.",
-      "action": "NONE"
-    },
-    {
       "code": "BUILDER_BUSY",
       "category": "USER",
       "status": 409,

@@ -51,7 +51,6 @@ export const FAILURES = {
   'SESSION_STATE_REFUSED': { category: 'USER', status: 400 },
   'BUILDER_SESSION_NOT_FOUND': { category: 'USER', status: 404 },
   'CONVERSATION_SESSION_REFUSED': { category: 'USER', status: 400 },
-  'CONVERSATION_CONFLICT': { category: 'USER', status: 409 },
   'BUILDER_BUSY': { category: 'USER', status: 409 },
   'BUILDER_RUN_STOP_REFUSED': { category: 'USER', status: 409 },
   'TOOL_ANSWER_ALREADY_GIVEN': { category: 'USER', status: 409 },
