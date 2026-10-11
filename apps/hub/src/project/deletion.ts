@@ -56,7 +56,7 @@ export function createProjectDeletion({ database, ports }: Readonly<{ database: 
 
   const finalizeDeletion = async (proof: Admitted<SystemScope<'project-purge'>>, projectId: ProjectIdType) => {
     const { tx } = proof
-    // The purge takes the project row first, like every admission that reaches it; a retry after the row is gone goes on.
+    // The purge takes the project row first, like every admission that reaches it.
     const target = await tx.maybe(Present, sql`SELECT 1 AS present FROM project.project WHERE project_id = ${projectId} FOR UPDATE`)
     const deletion = await tombstoneOf(tx, projectId)
     if (deletion?.completed_at) return
