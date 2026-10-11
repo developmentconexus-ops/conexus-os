@@ -357,6 +357,44 @@ test('an ended winning run keeps the successfully rotated row but cannot receive
   assert.equal(provider.requests.filter(({ kind }) => kind === 'refresh').length, 1)
 })
 
+test('a winning run that ended before the token request passes the refresh to its admitted waiting peer', async (t) => {
+  const f = await setupModelAccounts(t, 'conexus_model_unadmitted_winner')
+  await expiredClaude(f)
+  const projects = await Promise.all([f.seedBuilderProject(), f.seedBuilderProject()])
+  const [winnerRun, peerRun] = await Promise.all(projects.map((projectId) => f.seedRun(projectId)))
+  const turn = deferred()
+  const ended = deferred()
+  const waiting = deferred()
+  let winnerReads = 0
+  const winnerOpenRun = async (work) => {
+    if (++winnerReads === 3) { turn.resolve(); await ended.promise }
+    return f.openRun(winnerRun)(work)
+  }
+  let peerReads = 0
+  const peerOpenRun = async (work) => {
+    const result = await f.openRun(peerRun)(work)
+    if (++peerReads === 2) waiting.resolve()
+    return result
+  }
+  const winner = await selectedClaude(f, winnerOpenRun)
+  const peer = await selectedClaude(f, peerOpenRun)
+  const provider = await pausedClaude(t, f)
+  provider.release.resolve()
+  t.after(() => ended.resolve())
+  const winnerCall = refusalOf(winner)
+  await turn.promise
+  const peerCall = refusalOf(peer)
+  await waiting.promise
+  await query(f.connection, "UPDATE builder.builder_run SET state = 'SUCCEEDED', result_kind = 'RESPONSE_ONLY', finished_at = clock_timestamp() WHERE builder_run_id = $1", [winnerRun])
+  ended.resolve()
+  const [winnerError, peerError] = await Promise.all([winnerCall, peerCall])
+  assert.equal(winnerError.id, 'BUILDER_RUN_NOT_ADMITTED')
+  assert.equal(peerError.statusCode, 418)
+  assert.equal(provider.requests.filter(({ kind }) => kind === 'refresh').length, 1)
+  assert.deepEqual(provider.requests.filter(({ kind }) => kind === 'model'), [{ kind: 'model', bearer: 'Bearer synthetic-rotated' }])
+  assert.equal((await storedCredential(f, 'anthropic')).value.access, 'synthetic-rotated')
+})
+
 
 for (const change of ['oauth reconnect', 'key reconnect', 'disconnect']) {
   test(`an in-flight native refresh cannot overwrite ${change}, and a current caller reads the winning row`, async (t) => {

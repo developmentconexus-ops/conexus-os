@@ -24,8 +24,18 @@ async function rotate(credential: Extract<Credential, { kind: 'oauth' }>): Promi
   }
 }
 
-async function renew(store: ModelAccountStore, persist: Persist, openRun: OpenRun, held: HeldAccount): Promise<Result<Credential, HoldError>> {
-  const read = await store.reread(openRun, held)
+// The winner reads inside the row's turn on its own run. When that read fails nothing was spent,
+// so the turn passes to the next waiter instead of handing it the winner's refusal.
+type Renewal = Readonly<{ state: 'settled'; outcome: Result<Credential, HoldError> }> | Readonly<{ state: 'unread'; failure: unknown }>
+type Read = Awaited<ReturnType<ModelAccountStore['reread']>>
+
+async function renew(store: ModelAccountStore, persist: Persist, openRun: OpenRun, held: HeldAccount): Promise<Renewal> {
+  let read: Read
+  try { read = await store.reread(openRun, held) } catch (failure) { return { state: 'unread', failure } }
+  return { state: 'settled', outcome: await renewCurrent(persist, read) }
+}
+
+async function renewCurrent(persist: Persist, read: Read): Promise<Result<Credential, HoldError>> {
   if (!read.ok) return read
   if (read.result.state === 'gone') return { ok: false, error: { code: 'BUILDER_MODEL_NOT_SELECTED' } }
   const current = read.result.held
@@ -39,28 +49,32 @@ async function renew(store: ModelAccountStore, persist: Persist, openRun: OpenRu
 }
 
 export function createCredentialRefresh(store: ModelAccountStore, persist: Persist) {
-  const pending = new Map<ModelAccountId, Promise<Result<Credential, HoldError>>>()
+  const pending = new Map<ModelAccountId, Promise<Renewal>>()
   return Object.freeze({
     current: async (openRun: OpenRun, held: HeldAccount): Promise<Result<Credential, HoldError>> => {
       const credential = held.credential
       if (credential.kind !== 'oauth' || Date.now() < credential.value.expires) return { ok: true, result: credential }
-      const read = await store.reread(openRun, held)
-      if (!read.ok) return read
-      if (read.result.state === 'gone') return { ok: false, error: { code: 'BUILDER_MODEL_NOT_SELECTED' } }
-      const stored = read.result.held.credential
-      if (stored.kind !== 'oauth') return { ok: false, error: { code: 'BUILDER_MODEL_NOT_SELECTED' } }
-      if (Date.now() < stored.value.expires) return { ok: true, result: stored }
       const id = held.row.modelAccountId
-      let work = pending.get(id)
-      if (!work) {
-        work = renew(store, persist, openRun, held).finally(() => pending.delete(id))
-        pending.set(id, work)
+      for (;;) {
+        const read = await store.reread(openRun, held)
+        if (!read.ok) return read
+        if (read.result.state === 'gone') return { ok: false, error: { code: 'BUILDER_MODEL_NOT_SELECTED' } }
+        const stored = read.result.held.credential
+        if (stored.kind !== 'oauth') return { ok: false, error: { code: 'BUILDER_MODEL_NOT_SELECTED' } }
+        if (Date.now() < stored.value.expires) return { ok: true, result: stored }
+        const shared = pending.get(id)
+        const work = shared ?? renew(store, persist, openRun, held).finally(() => pending.delete(id))
+        if (!shared) pending.set(id, work)
+        const settled = await work
+        if (settled.state === 'unread') {
+          if (!shared) throw settled.failure
+          continue
+        }
+        const current = await store.reread(openRun, held)
+        if (!current.ok) return current
+        if (current.result.state === 'gone') return { ok: false, error: { code: 'BUILDER_MODEL_NOT_SELECTED' } }
+        return settled.outcome.ok ? { ok: true, result: current.result.held.credential } : settled.outcome
       }
-      const settled = await work
-      const current = await store.reread(openRun, held)
-      if (!current.ok) return current
-      if (current.result.state === 'gone') return { ok: false, error: { code: 'BUILDER_MODEL_NOT_SELECTED' } }
-      return settled.ok ? { ok: true, result: current.result.held.credential } : settled
     },
   })
 }
