@@ -300,10 +300,8 @@ export const census = () => {
   }
 }
 
-// Failure decoding is an HTTP boundary too: readFailure parses Problem before exposing a code.
-export const BOUNDARY_EXCEPTIONS = Object.freeze({
-  webResponseJson: Object.freeze(['apps/web/src/app/failure.ts#readFailure']),
-})
+// Each entry names an occurrence of a rule that stands, as `path#name`. None stands now.
+export const BOUNDARY_EXCEPTIONS = Object.freeze({})
 
 export function violations(found, exceptions = BOUNDARY_EXCEPTIONS) {
   return Object.entries(found).flatMap(([rule, entries]) => entries
