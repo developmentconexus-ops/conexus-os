@@ -58,7 +58,7 @@ for (const [key, file, source] of defects) test(`${key} names the actual defect 
 })
 
 test('a table of another schema and a name that only looks like a Builder table are not Builder tables', (t) => {
-  const result = fixture(t, { [`${OWNER}store.ts`]: "const query = 'SELECT 1 FROM model.model_account JOIN iam.account ON true'; const builders = 'builders and builder_names'" })
+  const result = fixture(t, { [`${OWNER}store.ts`]: "const query = 'SELECT 1 FROM model.model_account JOIN iam.account ON true'; const builders = 'builders and builder_names'; const lookalike = './request-builder.js'" })
   assert.deepEqual(result.hits, [])
 })
 

@@ -10,7 +10,7 @@ const LIVE = /^(apps\/hub\/src\/|packages\/contract\/src\/|tests\/implementation
 const RETIRED = new Set(['createModelRouting', 'ModelRoutes', 'ModelRoute', 'takeFrom', 'routeOf', 'Taken', 'createModelAccounts', 'RunContext', 'ADMISSION_REFUSALS'])
 const OLD_NAME = /FactorySecretEncryption|FactorySecretKey|DecryptedFactorySecret|createFactorySecretEncryption|factorySecretEncryption|factorySecretKey|CONEXUS_FACTORY_(?:PREVIOUS_)?SECRET_KEY_FILES?|mastra:factory-secret:v1:|factory-secret-encryption/g
 // Every table the Builder owns, named alone or through its schema.
-const BUILDER_TABLE = /\bbuilder\.[a-z_]|builder_run|builder_conversation|conversation_session|project_working_state|project_repository/
+const BUILDER_TABLE = /(?<![\w./-])builder\.[a-z_]+\b|\b(?:builder_run|conversation_session|project_working_state|project_repository)/
 const CREDENTIAL = 'apps/hub/src/model-account/credential.ts'
 const POLICY = 'scripts/check-model-account-census.mjs'
 
