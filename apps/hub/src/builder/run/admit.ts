@@ -1,6 +1,6 @@
 import { SourceRevision as SourceRevisionSchema, type AccountId, type BuilderRunId, type ProjectId, type SourceRevision } from '@conexus/contract'
 import { RECIPE_SHA256, TEMPLATE_REF } from '../application-artifact-runtime.js'
-import { prepareApplicationServer } from '../application-build.js'
+import { PrepareRefused, prepareApplicationServer } from '../application-build.js'
 import type { ApplicationServerPort, BuilderRegistry } from '../application-build.js'
 import type { CandidateVerdict } from '../candidate-gate.js'
 import type { ConexusGit } from '../conexus-git.js'
@@ -95,7 +95,7 @@ export const settleAdmittedSource = async ({ store, registry, applicationServer,
     if (code === 'BUILDER_RUN_CANCELLED') throw error
     await finalizing()
     await store.settleBuilderRunBuild({ kind: 'FAILED', builderRunId: run.builderRunId, sourceRevision: admitted, failureCode: code }).catch(() => undefined)
-    await buildFailed(code, error instanceof Error && typeof error.cause === 'string' ? error.cause : undefined)
+    await buildFailed(code, error instanceof PrepareRefused ? error.detail : undefined)
     throw error
   }
 }

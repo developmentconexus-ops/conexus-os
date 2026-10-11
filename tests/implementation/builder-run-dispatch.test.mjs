@@ -264,23 +264,48 @@ test('a page that did not render still advances the source, and settles the buil
 test("a source-shape refusal from the application server settles with the runner's own code, as a build failure the agent can read", async () => {
   const { calls, outcome } = await settle({
     applicationBuild: { kind: 'BUILT', compiledApplication: withServerTree() }, registry: retained,
-    applicationServer: { prepare: async () => { throw new Failure('SERVER_TREE_REFUSED', { cause: 'SERVER_TREE_REFUSED' }) } },
+    applicationServer: { prepare: async () => ({ ok: false, error: { code: 'SERVER_TREE_REFUSED' } }) },
   })
   assert.equal(outcome, 'SERVER_TREE_REFUSED')
   assert.deepEqual(calls, [
     ['advance', admitted], ['phase', 'FINALIZING'], ['build-settle', 'SERVER_TREE_REFUSED', null],
-    ['note', 'SERVER_TREE_REFUSED', 'BUILD_FAILED', 'SERVER_TREE_REFUSED'],
+    ['note', 'SERVER_TREE_REFUSED', 'BUILD_FAILED', undefined],
   ])
 })
 
-test('a platform-side prepare fault settles as a platform failure, not a build failure, and still carries its reason', async () => {
+test('a migration the runner refuses tells the agent which migration and which SQLSTATE, as far as the runner knows them', async () => {
+  const noted = []
+  for (const error of [
+    { code: 'APPLICATION_MIGRATION_FAILED', migration: '001_notes.sql', sqlstate: '42P01' },
+    { code: 'APPLICATION_MIGRATION_FAILED', migration: '001_notes.sql', sqlstate: null },
+    { code: 'APPLICATION_MIGRATION_FAILED', migration: null, sqlstate: '40001' },
+    { code: 'APPLICATION_MIGRATION_FAILED', migration: null, sqlstate: null },
+    { code: 'APPLICATION_MIGRATION_HISTORY_DIVERGED', migration: '001_notes.sql' },
+  ]) {
+    const { calls, outcome } = await settle({
+      applicationBuild: { kind: 'BUILT', compiledApplication: withServerTree() }, registry: retained,
+      applicationServer: { prepare: async () => ({ ok: false, error }) },
+    })
+    assert.equal(outcome, error.code)
+    noted.push(...calls.filter(([name]) => name === 'note'))
+  }
+  assert.deepEqual(noted, [
+    ['note', 'APPLICATION_MIGRATION_FAILED', 'BUILD_FAILED', '001_notes.sql, SQLSTATE 42P01'],
+    ['note', 'APPLICATION_MIGRATION_FAILED', 'BUILD_FAILED', '001_notes.sql'],
+    ['note', 'APPLICATION_MIGRATION_FAILED', 'BUILD_FAILED', 'SQLSTATE 40001'],
+    ['note', 'APPLICATION_MIGRATION_FAILED', 'BUILD_FAILED', undefined],
+    ['note', 'APPLICATION_MIGRATION_HISTORY_DIVERGED', 'BUILD_FAILED', '001_notes.sql'],
+  ])
+})
+
+test('a platform-side prepare fault settles as a platform failure, not a build failure', async () => {
   const { calls } = await settle({
     applicationBuild: { kind: 'BUILT', compiledApplication: withServerTree() }, registry: retained,
-    applicationServer: { prepare: async () => { throw new Failure('APPLICATION_SERVER_REFUSED', { cause: 'connect ECONNREFUSED 127.0.0.1:5432' }) } },
+    applicationServer: { prepare: async () => { throw new Failure('APPLICATION_SERVER_REFUSED') } },
   })
   assert.deepEqual(calls, [
     ['advance', admitted], ['phase', 'FINALIZING'], ['build-settle', 'APPLICATION_SERVER_REFUSED', null],
-    ['note', 'APPLICATION_SERVER_REFUSED', 'PLATFORM_FAILED', 'connect ECONNREFUSED 127.0.0.1:5432'],
+    ['note', 'APPLICATION_SERVER_REFUSED', 'PLATFORM_FAILED', undefined],
   ])
 })
 
