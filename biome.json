@@ -172,6 +172,11 @@
                   },
                   {
                     "group": ["**/platform/db", "**/platform/db.js"],
+                    "importNamePattern": "openReadGate",
+                    "message": "A read gate is opened only by identity-access/admission.ts."
+                  },
+                  {
+                    "group": ["**/platform/db", "**/platform/db.js"],
                     "importNamePattern": "bindAccount",
                     "message": "An account is bound to an authentication gate only by identity-access/authentication.ts."
                   },
@@ -214,6 +219,11 @@
                     "group": ["**/platform/db", "**/platform/db.js"],
                     "importNamePattern": "openGate",
                     "message": "A gate is opened only by identity-access/admission.ts and authentication.ts."
+                  },
+                  {
+                    "group": ["**/platform/db", "**/platform/db.js"],
+                    "importNamePattern": "openReadGate",
+                    "message": "A read gate is opened only by identity-access/admission.ts."
                   },
                   {
                     "group": ["**/platform/db", "**/platform/db.js"],
@@ -275,6 +285,11 @@
                   {
                     "group": ["**/tests/**", "**/scripts/**"],
                     "message": "Production code cannot import tests or scripts."
+                  },
+                  {
+                    "group": ["**/platform/db", "**/platform/db.js"],
+                    "importNamePattern": "openReadGate",
+                    "message": "A read gate is opened only by identity-access/admission.ts."
                   },
                   {
                     "group": ["**/platform/receipt", "**/platform/receipt.js"],

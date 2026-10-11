@@ -7,6 +7,7 @@ import { after, before, test } from 'node:test'
 
 const root = resolve(import.meta.dirname, '../..')
 const MESSAGE = 'A gate is opened only by identity-access/admission.ts and authentication.ts.'
+const READ = 'A read gate is opened only by identity-access/admission.ts.'
 const BIND = 'An account is bound to an authentication gate only by identity-access/authentication.ts.'
 const RECEIPT = 'A receipt is made only by receiptOf in identity-access/admission.ts.'
 const PG = 'Only the database edge may import pg.'
@@ -56,6 +57,15 @@ test('openGate is importable by admission.ts and authentication.ts only', () => 
   assert.ok(!lintReal('apps/hub/src/identity-access/admission.ts').includes(MESSAGE))
   assert.ok(!lint('apps/hub/src/identity-access/authentication.ts', probeCode).includes(MESSAGE))
   assert.ok(!lintReal('apps/hub/src/identity-access/authentication.ts').includes(MESSAGE))
+})
+
+test('openReadGate is importable by admission.ts only', () => {
+  const text = "import { openReadGate } from '../platform/db.js'\n\nexport const opened = openReadGate\n"
+  assert.ok(lint('apps/hub/src/workspace/read-gate-import-probe.ts', text).includes(READ))
+  assert.ok(lint('apps/hub/src/identity-access/sessions-read-gate-probe.ts', text).includes(READ))
+  assert.ok(lint('apps/hub/src/identity-access/authentication.ts', text).includes(READ))
+  assert.ok(!lint('apps/hub/src/identity-access/admission.ts', text).includes(READ))
+  assert.ok(!lintReal('apps/hub/src/identity-access/admission.ts').includes(READ))
 })
 
 test('bindAccount is importable by authentication.ts only', () => {
