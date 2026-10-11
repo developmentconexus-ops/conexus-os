@@ -361,8 +361,9 @@ patched one loses it.
 - One action **must** have one text everywhere.
 - A failure's words **must** come from `contracts/technical/failures.json`, read by
   `@conexus/contract` in the browser and emitted from that reader for standalone apps. Never show the
-  internal code in mono. A failure Conexus caused never asks
-  the person to try again. A failure the person can fix says what to change.
+  internal code in mono. A refusal read from a response shows a reference only from a validated
+  nonzero SYSTEM trace; a failed Builder run shows its own run reference (`shortReference` of the run
+  id). A failure Conexus caused never asks the person to try again. A failure the person can fix says what to change.
 - A tool **must** show as a sentence while it runs and when it ends (`tool-sentences.ts`), never as
   its technical name. Reasoning shows only as "Pensando…".
 - What is not built says "em breve". Numbers and dates use the Brazilian format ("1.234,5",

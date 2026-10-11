@@ -43,11 +43,23 @@ const defects = [
   ['legacyCustodyNames', 'apps/hub/src/platform/config.ts', `export const variable = '${oldKey}'`],
   ['legacyCustodyNames', 'scripts/backup-probe.mjs', `const prefix = '${oldPrefix}'`],
   ['providerJsonParsers', `${OWNER}native/moved.mts`, 'export function moved(text: string) { return JSON.parse(text) }'],
+  ['coreBuilderTables', `${OWNER}store.ts`, 'const query = sql`SELECT 1 FROM builder.conversation_session`'],
+  ['coreBuilderTables', `${OWNER}store.ts`, "const query = 'SELECT 1 FROM builder.project_working_state'"],
+  ['coreBuilderTables', `${OWNER}store.ts`, "const query = 'DELETE FROM project_repository'"],
+  ['coreBuilderImports', `${OWNER}native/moved.ts`, 'export * from "../../builder/store.js"'],
+  ['coreBuilderImports', `${OWNER}native/moved.ts`, 'export { store } from "../../builder/store.js"'],
+  ['coreBuilderImports', `${OWNER}native/moved.ts`, 'export const load = () => import("../../builder/store.js")'],
+  ['coreBuilderImports', `${OWNER}native/moved.ts`, 'export type Store = import("../../builder/store.js").Store'],
 ]
-for (const [key, file, source] of defects) test(`${key} names the actual defect even after a native file moves`, (t) => {
+for (const [key, file, source] of defects) test(`${key} names the actual defect even after a native file moves: ${source.slice(0, 60).replaceAll("\n", " ")}`, (t) => {
   const result = fixture(t, { [file]: source })
   assert.equal(result.counts[key], 1)
   assert.deepEqual(result.hits.find((hit) => hit.key === key)?.file, file)
+})
+
+test('a table of another schema and a name that only looks like a Builder table are not Builder tables', (t) => {
+  const result = fixture(t, { [`${OWNER}store.ts`]: "const query = 'SELECT 1 FROM model.model_account JOIN iam.account ON true'; const builders = 'builders and builder_names'; const lookalike = './request-builder.js'" })
+  assert.deepEqual(result.hits, [])
 })
 
 test('all actual historical and rejected inputs are classified individually, with no whole-file exemption', (t) => {

@@ -112,12 +112,6 @@ export const assertRoleInvariants = async (client) => {
   `)).rows.map(row => row.membership)
   const expectedMemberships = []
   if (JSON.stringify(memberships) !== JSON.stringify(expectedMemberships)) fail('MIGRATION_ROLE_MEMBERSHIP_REFUSED', memberships.join(','))
-  const openMemberships = (await client.query(`
-    SELECT pg_get_userbyid(m.roleid) AS role FROM pg_auth_members m
-    WHERE pg_get_userbyid(m.member) = 'hub_runtime' AND (m.inherit_option OR m.admin_option)
-    ORDER BY 1
-  `)).rows.map(row => row.role)
-  if (openMemberships.length > 0) fail('MIGRATION_ROLE_MEMBERSHIP_OPTION_REFUSED', openMemberships.join(','))
   // The only settings on the login role are the ones the register names, with its values: the
   // timeouts that bound a lock wait, a statement and an idle transaction. A role, a session
   // authorization or a conexus.* setting there would change every transaction, and a missing

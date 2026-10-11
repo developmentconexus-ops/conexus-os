@@ -77,6 +77,32 @@ test('0072 normalizes a stored retired Project creation refusal and its run summ
   assert.equal(RunRow.parse(row).failureCode, 'INTERNAL_UNEXPECTED')
 })
 
+test('0073 normalizes the three stored retired failure codes to INTERNAL_UNEXPECTED and leaves every other code alone', async (t) => {
+  const { connectionString } = await createEmptyDatabase(t, 'conexus_retired_failure_codes')
+  await runMigrations({ connectionString, migrations: corpus.filter(({ version }) => version <= '0072'), catalogSnapshot: null })
+  const codes = ['PROJECT_SUMMARIES_UNAVAILABLE', 'PROJECT_THUMBNAIL_UNAVAILABLE', 'CONNECTOR_WORKSPACE_NOT_FOUND', 'PREVIEW_UNAVAILABLE']
+  await query(connectionString, `
+    INSERT INTO iam.account(account_id, issuer, external_subject, display_name, email)
+      VALUES ('a0000000-0000-4000-8000-000000000001', 'https://kc.test', 'sub-owner', 'Owner', 'owner@example.test');
+    INSERT INTO workspace.workspace(workspace_id, name)
+      VALUES ('b0000000-0000-4000-8000-000000000001', 'Workspace');
+    INSERT INTO iam.workspace_membership(account_id, workspace_id, role)
+      VALUES ('a0000000-0000-4000-8000-000000000001', 'b0000000-0000-4000-8000-000000000001', 'owner');
+    INSERT INTO project.project(project_id, workspace_id, name, source_mode, source_revision, project_revision)
+      VALUES ('c0000000-0000-4000-8000-000000000001', 'b0000000-0000-4000-8000-000000000001', 'Project', 'NEW', repeat('a', 40), 'revision');`)
+  for (const [index, code] of codes.entries()) {
+    await query(connectionString, `
+      INSERT INTO builder.builder_run(builder_run_id, project_id, account_id, conversation_id, idempotency_digest, request_digest,
+          base_source_revision, state, failure_code, finished_at)
+        VALUES ($1, 'c0000000-0000-4000-8000-000000000001', 'a0000000-0000-4000-8000-000000000001', $1, repeat($2, 64), repeat('2', 64), repeat('a', 40),
+          'FAILED', $3, now())`, [`d0000000-0000-4000-8000-00000000000${index + 1}`, String(index + 3), code])
+  }
+
+  await runMigrations({ connectionString, migrations: corpus, catalogSnapshot: null })
+  const stored = (await query(connectionString, 'SELECT builder_run_id, failure_code FROM builder.builder_run ORDER BY builder_run_id')).rows
+  assert.deepEqual(stored.map((row) => row.failure_code), ['INTERNAL_UNEXPECTED', 'INTERNAL_UNEXPECTED', 'INTERNAL_UNEXPECTED', 'PREVIEW_UNAVAILABLE'])
+})
+
 test('0074 normalizes a stored retired Project build refusal and its run summary still parses', async (t) => {
   const { connectionString } = await createEmptyDatabase(t, 'conexus_retired_build_failure')
   const throughHubAuthority = corpus.filter(({ version }) => version <= '0073')

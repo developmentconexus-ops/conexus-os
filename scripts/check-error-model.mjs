@@ -36,6 +36,25 @@ function identifier(node, name) {
   return ts.isIdentifier(node) && node.text === name
 }
 
+// The name a declaration binds, whatever its kind: a function and a class are declared like a const.
+function declaredName(node) {
+  if (ts.isVariableDeclaration(node) || ts.isFunctionDeclaration(node) || ts.isClassDeclaration(node)) return node.name
+  return undefined
+}
+
+const bannedNames = Object.freeze({
+  ADMISSION_ROW: 'admissionMessageDecoders',
+  admissionFailure: 'admissionMessageDecoders',
+  workerCodeOf: 'workerCodeFilter',
+  failureProblem: 'failureBodyHelpers',
+  problemBody: 'failureBodyHelpers',
+  sendFailure: 'failureBodyHelpers',
+  sendInternal: 'failureBodyHelpers',
+  causeText: 'failureBodyHelpers',
+  HubFailure: 'hubFailureClass',
+})
+const EMBEDDED_CLASS = 'export class ConexusError extends Error'
+
 export function censusSource(path, text) {
   const source = ts.createSourceFile(path, text, ts.ScriptTarget.Latest, true, path.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS)
   const found = Object.fromEntries(targetNames.map((name) => [name, []]))
@@ -46,26 +65,23 @@ export function censusSource(path, text) {
     if (ts.isTypeAliasDeclaration(node) && identifier(node.name, 'Result') && ts.isTypeReferenceNode(node.type) && identifier(node.type.typeName, 'Reply')) {
       found.resultReplyAlias.push(at(path, node.name))
     }
-    if (ts.isFunctionDeclaration(node) && ['refuseManifest', 'refuseTree'].some((name) => identifier(node.name, name))) {
+    const name = declaredName(node)
+    if (name && ts.isIdentifier(name) && Object.hasOwn(bannedNames, name.text)) found[bannedNames[name.text]].push(at(path, name))
+    if (name && ['refuseManifest', 'refuseTree'].some((candidate) => identifier(name, candidate))) {
+      const body = ts.isVariableDeclaration(node) ? (node.initializer && (ts.isArrowFunction(node.initializer) || ts.isFunctionExpression(node.initializer)) ? node.initializer.body : undefined) : node.body
       const throws = (child) => ts.isThrowStatement(child) || ts.forEachChild(child, throws)
-      if (node.body && throws(node.body)) found.manifestThrowHelpers.push(at(path, node.name))
+      if (body && throws(body)) found.manifestThrowHelpers.push(at(path, name))
     }
-    if (ts.isVariableDeclaration(node) && ['ADMISSION_ROW', 'admissionFailure'].some((name) => identifier(node.name, name))) {
-      found.admissionMessageDecoders.push(at(path, node.name))
+    if (ts.isImportSpecifier(node)) {
+      const imported = node.propertyName ?? node.name
+      if (ts.isIdentifier(imported) && Object.hasOwn(bannedNames, imported.text)) found[bannedNames[imported.text]].push(at(path, node))
     }
-    if (ts.isVariableDeclaration(node) && identifier(node.name, 'workerCodeOf')) found.workerCodeFilter.push(at(path, node.name))
     if (ts.isCallExpression(node) && identifier(node.expression, 'failureProblem')) found.failureProblemCalls.push(at(path, node.expression))
-    if (ts.isClassDeclaration(node) && identifier(node.name, 'HubFailure')) found.hubFailureClass.push(at(path, node.name))
     if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier) && /\/failure(?:\.ts)?$/.test(node.moduleSpecifier.text)) {
       const bindings = node.importClause?.namedBindings
       if (bindings && ts.isNamedImports(bindings) && bindings.elements.length > 0) importedFailureModule.push(at(path, node))
     }
-    if (ts.isVariableDeclaration(node) && ['failureProblem', 'problemBody', 'sendFailure', 'sendInternal'].some((name) => identifier(node.name, name))) {
-      found.failureBodyHelpers.push(at(path, node.name))
-    }
-    if (ts.isVariableDeclaration(node) && identifier(node.name, 'APP_FAILURES_SOURCE') && node.initializer && ts.isStringLiteral(node.initializer)) {
-      embeddedConexusError = node.initializer.text.includes('export class ConexusError extends Error')
-    }
+    if ((ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) && node.text.includes(EMBEDDED_CLASS)) embeddedConexusError = true
     ts.forEachChild(node, visit)
   }
 
@@ -139,7 +155,7 @@ function main(args) {
   }
   console.log(`error-model prohibition: scope ${scope.join(', ')}`)
   console.log(`error-model prohibition: named template paths ${[...new Set(namedMechanisms.map(({ path }) => path))].join(', ')}`)
-  console.log('error-model prohibition: imported aliases and generated embedded source are not semantically resolved')
+  console.log('error-model prohibition: a name is matched where it is declared or imported, never resolved through a re-export or built from parts')
   for (const failure of failures) console.error(`error-model prohibition: ${failure}`)
   return failures.length === 0 ? 0 : 1
 }

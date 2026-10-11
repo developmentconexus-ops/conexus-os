@@ -4,7 +4,7 @@ import { admitAccount, admitApplication, admitBootstrap, checkApplication, check
 import type { Admitted, AccountScope, RunScope, ApplicationScope, Checked, ProjectScope, ProviderIdentity, SystemScope, WorkspaceScope } from '../../apps/hub/src/identity-access/admission.js'
 import { idempotent, type Receipted } from '../../apps/hub/src/platform/receipt.js'
 import { createWorkspace, type IdempotencyKey, WorkspaceId as WorkspaceIdSchema } from '@conexus/contract'
-import type { AuthenticationGate, CommandGate, ReadTx, RawToken, WriteTx } from '../../apps/hub/src/platform/db.js'
+import type { AuthenticationGate, CommandGate, ReadGate, ReadTx, RawToken, WriteTx } from '../../apps/hub/src/platform/db.js'
 import type { CredentialKind } from '../../apps/hub/src/model-account/credential.js'
 import { digest, sql } from '../../apps/hub/src/platform/db.js'
 import type { SealedApplication } from '../../apps/hub/src/registry/public.js'
@@ -30,6 +30,7 @@ declare const readTx: ReadTx
 declare const writeTx: WriteTx
 declare const presented: RawToken
 declare const gate: CommandGate
+declare const readGate: ReadGate
 declare const registry: RegistryModule
 declare const runProof: Admitted<RunScope>
 declare const sourceRevision: SourceRevision
@@ -63,19 +64,21 @@ gate.rows
 // @ts-expect-error A gate does not expose its transaction.
 gate.tx
 // @ts-expect-error A workspace admission takes a command gate, not an authentication gate.
-admitWorkspace(authentication, workspace, 'workspace.read')
-// @ts-expect-error Command admissions use an object input, not the retired positional form.
-admitWorkspace(gate, workspace, 'workspace.read')
+admitWorkspace(authentication, { workspaceId: workspace, action: 'workspace.read' })
+// @ts-expect-error A Project id cannot name the Workspace to admit.
+admitWorkspace(gate, { workspaceId: project, action: 'workspace.read' })
+// @ts-expect-error A read gate admits only the read actions, so managing members is a command.
+admitWorkspace(readGate, { workspaceId: workspace, action: 'members.manage' })
 // @ts-expect-error A transaction mode that writes cannot be asked of a read: run is not on a ReadTx.
 readTx.run(sql`SELECT 1`)
-// @ts-expect-error A command's own transaction is a write transaction, so it cannot take a read admission.
-admitProject(builder.tx, project, 'project.read')
-// @ts-expect-error Command admissions use an object input, not the retired positional form.
-admitProject(gate, project, 'project.read')
-// @ts-expect-error A read admission of a project takes only the read actions, so a build is a command.
-admitProject(readTx, project, 'project.build')
-// @ts-expect-error A command's own transaction cannot take the workspace read admission either.
-admitWorkspace(builder.tx, workspace, 'workspace.read')
+// @ts-expect-error A command's own transaction is a write transaction, not a gate, so it cannot take a Project admission.
+admitProject(builder.tx, { projectId: project, action: 'project.read' })
+// @ts-expect-error A Workspace id cannot name the Project to admit.
+admitProject(gate, { projectId: workspace, action: 'project.read' })
+// @ts-expect-error A read admission of a Project takes only the read actions, so deleting is a command.
+admitProject(readGate, { projectId: project, action: 'project.delete' })
+// @ts-expect-error A command's own transaction is not a gate, so it cannot take the Workspace read admission either.
+admitWorkspace(builder.tx, { workspaceId: workspace, action: 'workspace.read' })
 // @ts-expect-error A reader's transaction mode is 'read', never 'write'.
 const writeMode: ReadTx['mode'] = 'write'
 // @ts-expect-error A job proof for one job cannot stand in for the purge job's proof.
@@ -130,6 +133,10 @@ void checkProject(readTx, project)
 sql`SELECT ${presented}`
 
 const positiveAuthentication: Promise<Admitted<AccountScope>> = admitAccount(authentication)
+const positiveWorkspaceCommand: Promise<Admitted<WorkspaceScope<'members.manage'>>> = admitWorkspace(gate, { workspaceId: workspace, action: 'members.manage' })
+const positiveWorkspaceRead: Promise<Admitted<WorkspaceScope<'workspace.read'>, 'read'>> = admitWorkspace(readGate, { workspaceId: workspace, action: 'workspace.read' })
+const positiveProjectCommand: Promise<Admitted<ProjectScope<'project.delete'>>> = admitProject(gate, { projectId: project, action: 'project.delete' })
+const positiveProjectRead: Promise<Admitted<ProjectScope<'project.build'>, 'read'>> = admitProject(readGate, { projectId: project, action: 'project.build' })
 const positiveDigest = sql`SELECT ${digest(presented)}, ${'plain'}`
 const positiveOwner: Admitted<WorkspaceScope<'members.manage'>> = owner
 const positiveRead: Admitted<WorkspaceScope<'workspace.read'>, 'read'> = reader
@@ -156,7 +163,7 @@ const provisionedBare = provisionIdentity(authentication, claims)
 // @ts-expect-error A CredentialKind of openai-codex cannot hold the api_key kind.
 const unlawful: CredentialKind = { provider: 'openai-codex', kind: 'api_key' }
 
-void [purgedByAccount, positiveIdentityPurge, provisionedBare, positiveAuthenticatedCheck, positiveAuthenticatedAdmission, positivePreviewCheck, positiveReceipt, positiveKeyed, positiveBootstrap, unlawful, literalGate, spreadGate, positiveAuthentication, positiveDigest, positiveOwner, positiveRead, positiveGrant, positivePurge, positiveSystem, positiveChecked, positiveCheckedRead, checkedAsAdmitted, admittedAsChecked, copiedChecked, writeMode, wrongJob, forged, copied, wrongScope, wrongAction, wrongProject, wrongMode]
+void [positiveWorkspaceCommand, positiveWorkspaceRead, positiveProjectCommand, positiveProjectRead, purgedByAccount, positiveIdentityPurge, provisionedBare, positiveAuthenticatedCheck, positiveAuthenticatedAdmission, positivePreviewCheck, positiveReceipt, positiveKeyed, positiveBootstrap, unlawful, literalGate, spreadGate, positiveAuthentication, positiveDigest, positiveOwner, positiveRead, positiveGrant, positivePurge, positiveSystem, positiveChecked, positiveCheckedRead, checkedAsAdmitted, admittedAsChecked, copiedChecked, writeMode, wrongJob, forged, copied, wrongScope, wrongAction, wrongProject, wrongMode]
 // @ts-expect-error A claim is made only by claimInvitations: a literal cannot make an account an owner.
 joinClaimed(accountProof, { workspaces: [{ workspace_id: workspace, role: 'owner', invited_by: account }], applications: [] })
 // @ts-expect-error A claim is made only by claimInvitations: a literal cannot grant an application.
