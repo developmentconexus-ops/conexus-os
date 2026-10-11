@@ -76,7 +76,5 @@ test('membership ids and Workspace names share the account read snapshot', async
     pg.Client.prototype.query = original
   }
   assert.deepEqual(await module.listAccessibleWorkspaces(ID.member), [])
-  assert.deepEqual(await module.listAccessibleWorkspaces(ID.administrator), [
-    { workspaceId: ID.otherWorkspace, name: 'Elsewhere' }, { workspaceId: ID.workspace, name: 'Renamed' },
-  ])
+  assert.deepEqual(await module.listAccessibleWorkspaces(ID.administrator), [])
 })

@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { WorkspaceId, WorkspaceName, createWorkspace, type AccountId, type Input, type Reply } from '@conexus/contract'
-import { admitAccount, readMemberWorkspaceIds, grantCreatorMembership, readAdministratorFlag, receiptOf } from '../identity-access/public.js'
+import { admitAccount, readMemberWorkspaceIds, grantCreatorMembership, receiptOf } from '../identity-access/public.js'
 import type { Database } from '../platform/db.js'
 import { sql } from '../platform/db.js'
 import { idempotent } from '../platform/receipt.js'
@@ -18,9 +18,6 @@ export type WorkspaceStore = Readonly<{
 export const createWorkspaceStore = (database: Database): WorkspaceStore => Object.freeze({
   list: (accountId) => database.read(accountId, async (gate) => {
     const proof = await admitAccount(gate)
-    if (await readAdministratorFlag(proof)) {
-      return proof.tx.rows(WorkspaceRow, sql`SELECT workspace_id, name FROM workspace.workspace ORDER BY name, workspace_id`)
-    }
     const workspaceIds = await readMemberWorkspaceIds(proof)
     return proof.tx.rows(WorkspaceRow, sql`
         SELECT stored.workspace_id, stored.name FROM workspace.workspace AS stored

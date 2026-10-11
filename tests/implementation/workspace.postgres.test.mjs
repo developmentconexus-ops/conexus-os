@@ -53,12 +53,12 @@ test('createWorkspace rolls back both inserts and the receipt after a failed mem
   assert.deepEqual(rows.rows, [{ workspaces: 0, receipts: 0 }])
 })
 
-test('a workspace read scopes members while an administrator can list every workspace', async (t) => {
+test('a workspace list holds the memberships of the account, the administrator flag adds none', async (t) => {
   const { runtime, store } = await setup(t)
   await store.createWorkspace({ accountId: ACCOUNT, idempotencyKey: 'policy', body: { name: 'Operations' } })
   assert.deepEqual(await store.list(OUTSIDER), [])
   assert.equal((await store.list(ACCOUNT)).length, 1)
-  assert.deepEqual(await store.list(ADMINISTRATOR), [{ workspace_id: (await store.list(ACCOUNT))[0].workspace_id, name: 'Operations' }])
+  assert.deepEqual(await store.list(ADMINISTRATOR), [])
   assert.equal((await query(runtime, 'SELECT count(*)::integer AS n FROM workspace.workspace')).rows[0].n, 1)
   assert.equal((await query(runtime, 'SELECT count(*)::integer AS n FROM platform.operation_receipt')).rows[0].n, 1)
 })

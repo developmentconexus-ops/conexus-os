@@ -230,8 +230,7 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
         const answered = await call('member', 'GET', '/api/session')
         assert.deepEqual({ status: answered.status, administrator: answered.body.administrator, workspaces: answered.body.workspaces }, { status: 200, administrator: false, workspaces: [{ workspaceId: ID.workspace, name: 'Operations' }] })
       },
-      cross: async () => assert.deepEqual((await call('administrator', 'GET', '/api/session')).body.workspaces,
-        [{ workspaceId: ID.otherWorkspace, name: 'Elsewhere' }, { workspaceId: ID.workspace, name: 'Operations' }]),
+      cross: async () => assert.deepEqual((await call('administrator', 'GET', '/api/session')).body.workspaces, []),
       child: null,
     },
     'getWorkspaceRoster': {
