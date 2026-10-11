@@ -27,7 +27,7 @@ Preconditions:
 - **Start the Google sign-in.** Run `$C browser click --role button --name "Conectar com o Google"`. A second tab opens and fails to load, because the run's browser can't resolve accounts.google.com. The section shows the link `Abrir a entrada do Google` and the textbox `Endereço da aba que não abriu`.
 - **Paste the callback.** Run `$C browser attr --role link --name "Abrir a entrada do Google" --attr href` and take its `state` parameter. Run `$C browser fill --label "Endereço da aba que não abriu" --value "http://localhost:51121/oauth-callback?state=<state>&code=verify"` and `$C browser click --role button --name "Concluir"`. Within a few seconds the section shows `Conectado com a sua conta Google.` and the status `Google AI Pro conectado.`
 - **Close the dead tab.** Run `$C browser close-page`. With no `--page`, it closes every tab that is not on the Hub origin. `$C browser pages` then lists one tab.
-- **Proof.** Run `$C browser snapshot google-connected` and `$C db "select m.provider, m.kind, m.sharing, a.display_name as owner from model.model_account m join iam.account a on a.account_id = m.owner_account_id" --save model-account`. One row: `google-ai-pro`, `google_ai_pro`, `just_me`, `Verify Operator`.
+- **Proof.** Run `$C browser snapshot google-connected` and `$C db "select m.provider, m.kind, m.scope, a.display_name as owner from model.model_account m join iam.account a on a.account_id = m.owner_account_id" --save model-account`. One row: `google-ai-pro`, `google_ai_pro`, `personal`, `Verify Operator`.
 
 ## Gotchas
 
