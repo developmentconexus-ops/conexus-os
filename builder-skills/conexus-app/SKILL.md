@@ -48,7 +48,7 @@ app/src/
   routes/             one file per screen
   components/ui/      the kit. Do not edit.
   components/         your components shared by two or more screens
-  lib/                utils.ts, zod.ts (leave it), format.ts and errors.ts (use and extend them)
+  lib/                utils.ts, zod.ts (leave it) and format.ts (use and extend it)
   conexus/            api.gen.ts (when the manifest has operations) and failures.gen.ts, generated on every check. Never edit or write them.
   styles.css          the design tokens
 ```

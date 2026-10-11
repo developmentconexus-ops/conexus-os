@@ -3,18 +3,19 @@ import { Button } from '@mastra/playground-ui/components/Button'
 import { Input } from '@mastra/playground-ui/components/Input'
 import { Label } from '@mastra/playground-ui/components/Label'
 import { Skeleton } from '@mastra/playground-ui/components/Skeleton'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { createRoute, Link, useNavigate } from '@tanstack/react-router'
 import { KeyRound } from 'lucide-react'
 import { useId, useState } from 'react'
 import { AccessGate } from '../app/access-gate'
 import { Shell } from '../app/shell'
-import { listProjectSummaries, type ProjectDetail } from '@conexus/contract'
+import type { ProjectDetail, WorkspaceRole } from '@conexus/contract'
 import { deleteProject, projectQuery } from '../features/project/api'
 import { ProjectUnavailable } from '../features/project/components/project-unavailable'
 import '../features/project/project-settings.css'
 import { rootRoute } from './__root'
-import { FailureState } from '../app/failure-state'
+import { FailureNotice, FailureState } from '../app/failure-state'
+import { clearProjectCache, refreshProjectCache } from '../app/query-client'
 import { workspaceRosterQuery } from '../features/identity-access/membership-api'
 
 import { failureText } from '@conexus/contract'
@@ -40,13 +41,26 @@ function ProjectSettingsRoute() {
 function ProjectSettingsLoaded({ context, project }: Readonly<{ context: import('@conexus/contract').Session; project: ProjectDetail }>) {
   const workspace = context.workspaces.find((candidate) => candidate.workspaceId === project.workspaceId)
   const roster = useQuery(workspaceRosterQuery(project.workspaceId))
+  // Until the roster answers nobody is taken for an owner or for a member; a roster that failed says so.
+  const viewer: Viewer = roster.data?.viewerRole ?? 'unknown'
   return <Shell context={context} scope={workspace ? { workspace, project } : undefined}>
-    <div className="cx-page cx-page--narrow"><About project={project} owner={roster.data?.viewerRole === 'owner'} /></div>
+    <div className="cx-page cx-page--narrow">
+      <About project={project} viewer={viewer} />
+      {roster.isError && <FailureNotice title="Não foi possível carregar as pessoas." error={roster.error} onRetry={() => void roster.refetch()} />}
+    </div>
   </Shell>
 }
 
-function About({ project, owner }: Readonly<{ project: ProjectDetail; owner: boolean }>) {
-  if (project.state === 'deleting') return <DeletionRecovery project={project} owner={owner} />
+type Viewer = WorkspaceRole | 'unknown'
+const DELETION_NEXT_STEP: Readonly<Record<Viewer, string>> = {
+  owner: 'Você pode tentar concluir a exclusão novamente.',
+  member: 'Um responsável pelo Workspace poderá concluir a exclusão.',
+  unknown: '',
+}
+
+function About({ project, viewer }: Readonly<{ project: ProjectDetail; viewer: Viewer }>) {
+  const owner = viewer === 'owner'
+  if (project.state === 'deleting') return <DeletionRecovery project={project} viewer={viewer} />
   return <>
     <div className="cx-page-head">
       <div>
@@ -82,22 +96,24 @@ function About({ project, owner }: Readonly<{ project: ProjectDetail; owner: boo
   </>
 }
 
-function DeletionRecovery({ project, owner }: Readonly<{ project: ProjectDetail; owner: boolean }>) {
-  const queryClient = useQueryClient()
+function DeletionRecovery({ project, viewer }: Readonly<{ project: ProjectDetail; viewer: Viewer }>) {
+  const owner = viewer === 'owner'
   const navigate = useNavigate()
   const [message, setMessage] = useState('')
   const retry = useMutation({
     mutationFn: () => deleteProject(project.projectId, project.name),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: [listProjectSummaries.id] })
+      // After the screen left the Project, so the detail it is leaving is marked stale and not read once more.
       await navigate({ to: '/workspaces/$workspaceId/projects', params: { workspaceId: project.workspaceId } })
+      clearProjectCache(project.projectId)
+      refreshProjectCache(project.projectId)
     },
     onError: (error) => setMessage(failureText(error)),
   })
 
   return <div className="cx-state" role="alert">
     <h2>Exclusão de {project.name} em andamento</h2>
-    <p>Este Projeto está sendo excluído. {owner ? 'Você pode tentar concluir a exclusão novamente.' : 'Um responsável pelo Workspace poderá concluir a exclusão.'}</p>
+    <p>Este Projeto está sendo excluído. {DELETION_NEXT_STEP[viewer]}</p>
     {owner && <Button type="button" variant="destructive" disabled={retry.isPending} onClick={() => retry.mutate()}>
       {retry.isPending ? 'Excluindo…' : 'Tentar concluir exclusão'}
     </Button>}
@@ -106,7 +122,6 @@ function DeletionRecovery({ project, owner }: Readonly<{ project: ProjectDetail;
 }
 
 function DangerZone({ project }: Readonly<{ project: ProjectDetail }>) {
-  const queryClient = useQueryClient()
   const navigate = useNavigate()
   const inputId = useId()
   const [open, setOpen] = useState(false)
@@ -115,8 +130,10 @@ function DangerZone({ project }: Readonly<{ project: ProjectDetail }>) {
   const remove = useMutation({
     mutationFn: () => deleteProject(project.projectId, confirmName),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: [listProjectSummaries.id] })
+      // After the screen left the Project, so the detail it is leaving is marked stale and not read once more.
       await navigate({ to: '/workspaces/$workspaceId/projects', params: { workspaceId: project.workspaceId } })
+      clearProjectCache(project.projectId)
+      refreshProjectCache(project.projectId)
     },
     onError: (error) => setMessage(failureText(error)),
   })

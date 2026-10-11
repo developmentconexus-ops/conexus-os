@@ -180,6 +180,8 @@ test('Minhas contas de modelo signs a person in to Google AI Pro through a paste
   enabled = false
   await page.reload()
   await page.getByRole('heading', { name: 'Minhas contas de modelo' }).waitFor()
+  // Every account on this screen is the person's own: the lead promises no account of the installation.
+  assert.equal(await page.locator('.cxs-page-header p').innerText(), 'Cada pessoa usa a própria conta.')
   assert.equal(await page.getByRole('heading', { name: 'Google AI Pro' }).count(), 0)
 })
 

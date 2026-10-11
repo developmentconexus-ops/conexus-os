@@ -1,11 +1,11 @@
 import { THINKING_LEVEL_VALUES, type ThinkingLevelSetting } from '@mastra/code-sdk/thinking'
-import { MastraClient, MastraClientError } from '@mastra/client-js'
-import { readFailure, type FailureCode } from '@conexus/contract'
+import { MastraClient } from '@mastra/client-js'
+import { isFailure, type FailureCode } from '@conexus/contract'
 import type { SubmitPlanResumeData } from '@mastra/core/tools'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useReducer } from 'react'
 import { listAvailableModels, type OfferedModel } from '@conexus/contract'
-import { call, hubFetch } from '../../app/http'
+import { call, projectFetch } from '../../app/http'
 import { parseRunState } from './api'
 import { builderSessionKey, writeStreamedRun } from './builder-session'
 import { type StreamState, useSessionStream, useStreamState } from './connection'
@@ -13,22 +13,21 @@ import { type MemoryGauge, type RuntimeState, emptyRuntime, runtimeReducer } fro
 import { type PromptEntry, type TranscriptAction, type TranscriptState, emptyTranscript, transcriptReducer } from './transcript'
 
 
-const clientAt = (apiPrefix: string) => new MastraClient({
-  baseUrl: window.location.origin,
-  apiPrefix,
-  credentials: 'same-origin',
-  retries: 0,
-  fetch: hubFetch,
-})
-
 // The Builder's own controller, reached through Mastra's Agent Controller routes the Hub mounts
 // under /api/builder. A Project's conversations are the threads of its resource; each is one session
 // (scope conversation:<id>) on its thread, which the browser and the conversation's runs share.
-const builderController = clientAt('/api/builder').getAgentController('conexus-builder')
+// The client is the Project's own, so a refusal on these routes reaches the Project's cache.
+const builderController = (projectId: string) => new MastraClient({
+  baseUrl: window.location.origin,
+  apiPrefix: '/api/builder',
+  credentials: 'same-origin',
+  retries: 0,
+  fetch: projectFetch(projectId),
+}).getAgentController('conexus-builder')
 const projectResource = (projectId: string): string => `project:${projectId}`
-const projectSessions = (projectId: string) => builderController.session(projectResource(projectId))
+const projectSessions = (projectId: string) => builderController(projectId).session(projectResource(projectId))
 const conversationSession = (projectId: string, conversationId: string) =>
-  builderController.session(projectResource(projectId), `conversation:${conversationId}`)
+  builderController(projectId).session(projectResource(projectId), `conversation:${conversationId}`)
 
 const builderThreadMessagesKey = (projectId: string, threadId: string) => ['builder-thread-messages', projectId, threadId] as const
 
@@ -248,12 +247,6 @@ export const answerPendingCall = async (projectId: string, conversationId: strin
     else await session.respondToToolSuspension(pending.toolCallId, answer.answers as unknown as string[])
     return 'ACCEPTED'
   } catch (error) {
-    if (!(error instanceof MastraClientError)) return 'UNAVAILABLE'
-    const response = new Response(JSON.stringify(error.body), {
-      status: error.status,
-      headers: { 'content-type': 'application/problem+json' },
-    })
-    const failure = await readFailure(response)
-    return ANSWER_REFUSAL_BY_CODE[failure.code] ?? 'UNAVAILABLE'
+    return isFailure(error) ? ANSWER_REFUSAL_BY_CODE[error.code] ?? 'UNAVAILABLE' : 'UNAVAILABLE'
   }
 }

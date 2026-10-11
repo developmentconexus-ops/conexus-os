@@ -62,6 +62,13 @@ test('the conexus-app skill cites every reference page it ships', () => {
   }
 })
 
+test("the conexus-app skill's lib/ line names exactly the files the starter's lib/ holds", () => {
+  const line = skillText('conexus-app').split('\n').find((entry) => /^\s+lib\/\s/.test(entry))
+  assert.ok(line, 'the layout names no lib/ line')
+  const named = [...line.matchAll(/[\w-]+\.ts\b/g)].map((match) => match[0]).sort()
+  assert.deepEqual(named, readdirSync(resolve(repositoryRoot, 'apps/hub/starter-template/files/app/src/lib')).sort())
+})
+
 test('the conexus-app skill names the source and licence of the passages it adapts', () => {
   const text = skillText('conexus-app')
   assert.match(text, /skills\/frontend-design\/SKILL\.md/)

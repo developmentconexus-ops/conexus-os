@@ -2249,3 +2249,71 @@ test('a first load that fails still shows the error page', async (t) => {
   await page.getByText('Não foi possível abrir o Construir').waitFor()
   assert.equal(await messageBox(page).count(), 0)
 })
+
+test('a refusal on a native session route reads as the Hub named it, not as an unreadable answer', async (t) => {
+  const conversationId = conversationIdOf('conversation-native-refusal')
+  const { page } = await openAgenda(t, { accountId: '70000000-0000-4000-8000-000000000240', projectId: '70000000-0000-4000-8000-000000000241', conversationId })
+  await messageBox(page).waitFor()
+  await page.route(`${BUILDER_CONTROLLER}/sessions/*/threads/*/messages*`, (route) => route.fulfill(problem('CONVERSATION_NOT_FOUND')))
+  await page.reload()
+  const notice = page.getByRole('alert').filter({ hasText: 'Não foi possível ler esta conversa.' })
+  await notice.waitFor()
+  assert.equal(await notice.innerText(), `Não foi possível ler esta conversa. ${FAILURES.CONVERSATION_NOT_FOUND.message}`)
+  assert.equal(await notice.getByRole('button').count(), 0, 'a conversation that is not there offers no retry')
+})
+
+test('a native session route that answers Project not found re-reads the Project and leaves the screen', async (t) => {
+  const projectId = '70000000-0000-4000-8000-000000000243'
+  const { page, state } = await openAgenda(t, { accountId: '70000000-0000-4000-8000-000000000242', projectId, conversationId: conversationIdOf('conversation-native-gone') })
+  state.conversations = [...state.conversations, conversation(conversationIdOf('conversation-native-gone-other'), 'Estoque')]
+  await page.reload()
+  await messageBox(page).waitFor()
+  // Only the thread read of the conversation switched to runs from here on: nothing else asks for the Project again.
+  await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill(problem('PROJECT_NOT_FOUND')))
+  await page.route(`${BUILDER_CONTROLLER}/sessions/*/threads/*/messages*`, (route) => route.fulfill(problem('PROJECT_NOT_FOUND')))
+  await switchConversationTo(page, 'Estoque')
+  await page.getByRole('heading', { name: 'Projeto indisponível' }).waitFor()
+  assert.equal(await messageBox(page).count(), 0)
+})
+
+test('a completed delete drops what the Build screen had cached for the Project', async (t) => {
+  const accountId = '70000000-0000-4000-8000-000000000244'
+  const projectId = '70000000-0000-4000-8000-000000000245'
+  const workspace = { workspaceId: '70000000-0000-4000-8000-000000000246', name: 'Operações' }
+  const conversationId = conversationIdOf('conversation-deleted-project')
+  const { page, origin } = await web.openPage(t, { viewport: { width: 1200, height: 900 } })
+  await page.route('**/api/session', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [workspace], administrator: false }) }))
+  await routeBuilder(page, builderState([conversation(conversationId, 'Agenda')], { [conversationId]: [userMessage('user-1', 'Crie uma agenda'), assistantMessage('assistant-1', 'Agenda pronta')] }))
+  // Once the Project is deleted its reads are held, so what the screen shows is what it kept.
+  let deleted = false
+  const held = new Promise(() => {})
+  await page.route(`**/api/control/projects/${projectId}`, async (route) => {
+    if (deleted) await held
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: workspace.workspaceId, name: 'Agenda', projectRevision: '50000000-0000-4000-8000-000000000001', archived: false, state: 'live' }) })
+  })
+  await page.route(`**/api/control/projects/${projectId}?*`, (route) => {
+    if (route.request().method() !== 'DELETE') return route.continue()
+    deleted = true
+    return route.fulfill({ status: 204 })
+  })
+  await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(sessionOf(projectId)) }))
+  await page.route(`**/api/control/workspaces/${workspace.workspaceId}/roster`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ viewerRole: 'owner', entries: [] }) }))
+  await page.route(`**/api/control/workspaces/${workspace.workspaceId}/project-summaries`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projects: [] }) }))
+  await page.route(`${BUILDER_CONTROLLER}/sessions/*/threads/*/messages*`, async (route) => {
+    if (deleted) await held
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ messages: [userMessage('user-1', 'Crie uma agenda'), assistantMessage('assistant-1', 'Agenda pronta')] }) })
+  })
+
+  await page.goto(`${origin}/projects/${projectId}`)
+  await page.getByText('Agenda pronta').waitFor()
+  await page.getByRole('link', { name: 'Sobre' }).click()
+  await page.getByRole('button', { name: 'Excluir Projeto' }).click()
+  await page.getByLabel('Nome do Projeto').fill('Agenda')
+  await page.getByRole('button', { name: 'Excluir para sempre' }).click()
+  await page.waitForURL(`**/workspaces/${workspace.workspaceId}/projects`)
+
+  await page.goBack()
+  await page.getByRole('link', { name: 'Construir' }).click()
+  await page.getByText('Carregando a conversa…').waitFor()
+  assert.equal(await page.getByText('Agenda pronta').count(), 0)
+})
