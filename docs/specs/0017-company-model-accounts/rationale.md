@@ -30,7 +30,7 @@ default writers remain outside. Firstmate chose separate spec rewrite branches i
 spec branches. On 2026-10-07 the operator answered “0017: Apvo” to the analyzed guarded cutover:
 abort on nonempty connector/model credential tables after the already planned S1 local reset,
 end sessions/handoffs, same key bytes, manual reconnect, no decoder/re-encryption. These answers
-approve study choices, **not this spec or any pilot action**. The unsupported old approval is removed.
+approve study choices and **no pilot action**; the approval of the spec is the status line in the index. The unsupported old approval is removed.
 
 For cutover, preserving existing data was a real alternative: a trusted bounded read/reseal migration
 would need shutdown/concurrency/recovery/restore handling and more custody-sensitive code.
@@ -106,7 +106,7 @@ current census and disposable migration/catalog proof, as recorded in the index.
 
 | Independent finding | Correction / evidence in rewritten spec |
 | --- | --- |
-| 0017 F1 unsupported approval/delivered claim | Draft status; Starting point names actual main and unmerged schema, no accepted implementation claim |
+| 0017 F1 unsupported approval/delivered claim | Draft status until the operator approved the spec; Starting point names actual main and unmerged schema, no accepted implementation claim |
 | F2 missing options/verdicts | Complete wave/cutover options above; mechanism table has three proofs and retained/removed alternatives |
 | F3 persistence removed | store.ts exposes owner-system persist with CAS outcome; U4 creates it and proves post-run capture, not 0020 |
 | F4 impossible fixed waiter pin | U1 explicitly characterizes main; U5 creates fixed current-admission expectation |

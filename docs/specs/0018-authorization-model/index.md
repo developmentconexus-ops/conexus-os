@@ -2,7 +2,9 @@
 
 **Date**: 2026-10-07
 
-**Status**: Approved by the operator on 2026-10-07, commit bbed6747a9182f2d4abe23fdc93e3b8b898ae11b
+**Status**: Approved by the operator on 2026-10-11, commit e0353c3608651ad3573dc921fd8230cb318eb543
+
+**Reservation**: Approved with the migration refusing a PostgreSQL server that holds a second Hub database. Removing the database row backstop (C-042) was accepted when one installation served one company. With several companies it stays accepted only until the first outside company enters, and it is decided before that, with a proof on the real Hub tables.
 
 **Lane**: lane:qualification (Q-b, identity authority and database privilege migration)
 
@@ -10,7 +12,7 @@
 
 **Issue**: [#543](https://github.com/developmentconexus-ops/conexus-os/issues/543)
 
-**Study**: Authorization respec study of 2026-10-07, held by the planning session. The operator approved its objective with a simpler proof scope; [rationale.md](rationale.md) records that answer and the current evidence. This is not approval to build the spec.
+**Study**: Authorization respec study of 2026-10-07, held by the planning session. The operator approved its objective with a simpler proof scope; [rationale.md](rationale.md) records that answer and the current evidence. That answer approved the study; the approval of the spec is the status line above.
 
 ## Summary
 
@@ -180,7 +182,7 @@ Baseline at `0987494f`, production identical to current main `5efbc090`:
 | Required cleanup | purge before repository; native session errors swallowed | repository/session completion before atomic purge+complete, representative failure/retry tests |
 | Project state | live fields plus deleting booleans/empty revision fallback | live/deleting contract union, compiler and normal UI proof |
 
-The study's rerunnable census uses TypeScript AST and reports counts plus file:line; its direct-callback heuristic is inventory, not a security analyzer. The builder extends existing census-boundaries only where cheap: closed read gate opener ownership, obsolete runtime symbols/settings and raw person helper signatures. Keep its current useful checks/record. Do not build a general call graph, per-operation registry or fail-closed arbitrary SQL classifier. Existing current numbers are a baseline, not an artificial target for unrelated authentication internals.
+The study's rerunnable census uses TypeScript AST and reports counts plus file:line; its direct-callback heuristic is inventory, not a security analyzer. The builder extends the existing boundary check (`scripts/check-boundaries.mjs`) only where cheap: closed read gate opener ownership, obsolete runtime symbols/settings and raw person helper signatures. Keep its current useful checks/record. Do not build a general call graph, per-operation registry or fail-closed arbitrary SQL classifier. Existing current numbers are a baseline, not an artificial target for unrelated authentication internals.
 
 Delete old authorization catalogs, per-action outsider code, administrator project.delete, raw ReadTx read-admission overloads, deciding admin/Builder booleans, subject-FK authorization aliases, catch-all Project wrappers, source-refusal-to-false branch, tombstone/fake-revision fallback, public purge/separate complete, RLS helpers/policies/flags/obsolete roles/settings, obsolete split-register semantics and actor lint. Every live caller moves in its deleting unit; no old export remains for a test. Keep meaningful names such as hub-catalog-lint, ReadTx, WriteTx, Admitted and Checked.
 
@@ -211,7 +213,7 @@ apps/hub/src/builder/conversation.ts
 apps/hub/src/builder/conversations.ts
 apps/hub/src/builder/run-reads.ts
 apps/hub/src/builder/preview-state.ts
-apps/hub/src/builder/model-account/accounts.ts
+apps/hub/src/builder/model-account/accounts.ts (deleted since; apps/hub/src/model-account/store.ts holds the account reads and writes)
 apps/hub/src/builder/run-lifecycle.ts
 apps/hub/src/builder/module.ts
 apps/hub/src/builder/routes.ts
@@ -236,7 +238,7 @@ contracts/technical/hub-catalog-census.json
 contracts/technical/hub-catalog-snapshot.json
 contracts/api/product/openapi.json
 contracts/api/technical/openapi.yaml
-scripts/census-boundaries.mjs
+scripts/check-boundaries.mjs (budgeted as scripts/census-boundaries.mjs, renamed since)
 scripts/run-hub-migrations.mjs
 scripts/generate-hub-role-register.mjs
 scripts/hub-catalog.mjs
@@ -245,9 +247,9 @@ biome.json
 biome/plugins/no-session-setting-in-sql.grit
 scripts/hub-catalog-lint.mjs
 scripts/provision-hub-roles.mjs
-scripts/conexus-verify.mjs
+scripts/conexus-verify.mjs (deleted since; package.json and .github/workflows/verify.yml run the checks)
 scripts/check-import-law.mjs
-contracts/technical/census-boundaries.json
+contracts/technical/census-boundaries.json (deleted since; no record file replaced it, scripts/check-boundaries.mjs holds its registrations)
 apps/web/src/routes/workspace-projects.tsx
 apps/web/src/routes/project-settings.tsx
 apps/web/src/routes/construir.tsx
@@ -270,7 +272,7 @@ apps/hub/migrations/<next>_retired_build_failure.sql
 
 ## Units
 
-Builders read their card, its cited Design sections, the census/inventory and the current production owners described by the spec. Identity/foreign-mount and migration units carry needs:aprovo under areas.json/delivery. Nothing builds before the operator approves the corrected spec. Every unit runs the pinned preflight, verify:quick and its relevant existing/scoped tests. A new failure/migration regenerates its artifacts from their owners. No unit uses real E2B/provider/company data or a shared cluster without separate authority.
+Builders read their card, its cited Design sections, the census/inventory and the current production owners described by the spec. Identity/foreign-mount and migration units carry needs:aprovo under areas.json/delivery. The operator's approval line opens the build of every unit. Every unit runs the pinned preflight, verify:quick and its relevant existing/scoped tests. A new failure/migration regenerates its artifacts from their owners. No unit uses real E2B/provider/company data or a shared cluster without separate authority.
 
 ### U1. Pin current behavior with existing fixtures
 
@@ -281,7 +283,7 @@ Builders read their card, its cited Design sections, the census/inventory and th
 - **Copies**: Existing test fixtures and literal outcomes; T §1/4/6. The private census is evidence to compare, not code to import.
 - **Guide sections**: C §4/7, D §3/5, T §1-7; the current authority is pinned, not silently changed.
 - **Deletes**: No retained behavior. Avoid duplicate tests for already covered cases; unsafe current behavior is named characterization, replaced in its owning unit.
-- **Proof**: Current deletion/admission suites are 21 passing tests from the study; retain them. Add the native drop failure that currently resolves despite one failed deleteSession, administrator nonmember Workspace reader absence, and missed current helper outcomes only if uncovered. Literal results, no skipped desired-target test. Record 70 entries/19 reads/4 direct admits/33 raw helper bodies/47 operations and 50 policies/26 tables with the rerunnable study census; existing census-boundaries stays green.
+- **Proof**: Current deletion/admission suites are 21 passing tests from the study; retain them. Add the native drop failure that currently resolves despite one failed deleteSession, administrator nonmember Workspace reader absence, and missed current helper outcomes only if uncovered. Literal results, no skipped desired-target test. Record 70 entries/19 reads/4 direct admits/33 raw helper bodies/47 operations and 50 policies/26 tables with the rerunnable study census; the existing boundary check stays green.
 - **Out of scope**: New failures, target implementation, exhaustive matrix/mutants or extra browser gate.
 - **Stop if**: A deciding case cannot be isolated without a real provider or the baseline differs materially; bring that evidence to the planning session.
 
@@ -355,7 +357,7 @@ Builders read their card, its cited Design sections, the census/inventory and th
 - **Already there**: U1-U6; all target behaviors and guide edits landed; current types/consumers are the owner. Read Requirements, Deletes/census, bounded inventory and Representative proof.
 - **Creates**: Only final adjustments to existing boundary/catalog checks and CI wiring needed for the changed target, and the qualification evidence on the same wave head. Record census targets and representative results; no second checker/framework.
 - **Satisfies**: AC-9 and confirms AC-1-8 complete on this head.
-- **Files**: Existing scripts/{census-boundaries,check-import-law,conexus-verify}.mjs and existing record/config/tests where needed; deletes docs/specs/0018-authorization-model/shape/. Documents already changed by owning units need only fact corrections identified by the final check.
+- **Files**: Existing scripts/{census-boundaries,check-import-law,conexus-verify}.mjs (the first is now `scripts/check-boundaries.mjs`; the last was deleted since, and `package.json` wires the checks) and existing record/config/tests where needed; deletes docs/specs/0018-authorization-model/shape/. Documents already changed by owning units need only fact corrections identified by the final check.
 - **Copies**: Existing verification graph, actual catalog and compiler checks, T/L qualification flow.
 - **Guide sections**: C §10/11, T proof, L waves/same-head gates; no new guide policy.
 - **Deletes**: shape/, remaining obsolete imports/test assertions only after their real consumers are moved. Keep historical migrations/hash records; no history rewrite.
@@ -379,4 +381,4 @@ Builders read their card, its cited Design sections, the census/inventory and th
 
 ## Stop rule
 
-Return to the planning session when a load-bearing decision/public admission boundary must change, a premise is disproved, or the plan exceeds eight units or 70 product files. A missing current fact is observed, not asked as a product question. The corrected draft still needs the operator's spec approval; the previous unsupported approval line has been removed.
+Return to the planning session when a load-bearing decision/public admission boundary must change, a premise is disproved, or the plan exceeds eight units or 70 product files. A missing current fact is observed, not asked as a product question. The previous unsupported approval line was removed; the operator's approval is the status line.

@@ -2,7 +2,9 @@
 
 **Date**: 2026-10-07
 
-**Status**: Approved by the operator on 2026-10-07, commit 75423cc3c3027702b6da31001b560e8d46077149
+**Status**: Approved by the operator on 2026-10-11, commit e0353c3608651ad3573dc921fd8230cb318eb543
+
+**Reservation**: Approved as built, including what entered after the first approval: Preview shows the same table failure text as the conversation, and the wave closed at 76 source/config paths, past the delivery guide's limit of 70, without splitting. U8 was not built as a unit; the wave proof stands in its place. If apps leave the server, U4's private runner path is kept as a contract, not as code.
 
 **Lane**: lane:qualification (Q-b: process/wire format; Q-c: real consumer proof)
 
@@ -14,7 +16,7 @@
 
 A caller that handles a refusal receives a plain typed result. The runner keeps only the safe repair facts the Builder needs on its existing private channel; the public HTTP boundary writes a table-owned code and validated trace reference. The web imports one browser reader from the existing contract package, and the standalone app receives that reader by generation. This removes message decoding, public diagnostic text and duplicate readers without a Result library, new channel or general error-analysis engine.
 
-The operator approved the study's bounded scope and end condition on 2026-10-07, then the private Result carrier on the existing runner channel. The operator also approved final Hub exposure/Builder settlement as the one log owner for propagated native runner faults, retaining their cause in a redacted native span with existing unix trace propagation. These answers do not approve this spec or authorize product builds. No recorded-failure role is introduced. The previous unsupported approval is withdrawn. This is model wave 1; the roadmap owns any later migration or sweep.
+The operator approved the study's bounded scope and end condition on 2026-10-07, then the private Result carrier on the existing runner channel. The operator also approved final Hub exposure/Builder settlement as the one log owner for propagated native runner faults, retaining their cause in a redacted native span with existing unix trace propagation. These answers approved the study and those two choices; the approval of the spec is the status line above. No recorded-failure role is introduced. The previous unsupported approval is withdrawn. This is model wave 1; the roadmap owns any later migration or sweep.
 
 ## Requirements
 
@@ -61,7 +63,7 @@ The temporary compiled `shape/` held the target contract during the build. It wa
 
 ### Data, ownership and sequencing
 
-No database migration or new dependency. `contracts/technical/failures.json` remains the code/text/status/action/category/audience owner. U3 adds one SYSTEM, person-facing BUILDER_SANDBOX_OPEN_FAILED row (HTTP 503, action NONE) and generated outputs. Proposed person text: “O ambiente de código não abriu. A falha foi registrada.” The operator may revise that text at this spec gate. Existing rows are not reclassified here.
+No database migration or new dependency in this spec's units. One production dependency, `libpg-query`, reaches `main` in the same integrated batch, with the app runner's migration-SQL validator (`apps/hub/src/app-runner/migration-sql.ts`); it belongs to no unit of this spec, and the operator confirmed it on 2026-10-11. `contracts/technical/failures.json` remains the code/text/status/action/category/audience owner. U3 adds one SYSTEM, person-facing BUILDER_SANDBOX_OPEN_FAILED row (HTTP 503, action NONE) and generated outputs. Proposed person text: “O ambiente de código não abriu. A falha foi registrada.” The operator may revise that text at this spec gate. Existing rows are not reclassified here.
 
 `packages/contract/src/result.ts` is type-only. Existing `Failure extends MastraError`, `toFailure`, redacting exporters and table generation remain. The browser-only `failure-client.ts` owns ReceivedFailure and reader/formatters; it must import no Hub, Node or secret-bearing module. Web imports its exports through `@conexus/contract`; only standalone app support is emitted, with app-audience table text. No generated web module or second parser.
 
@@ -140,7 +142,7 @@ The bounded census is Git-tracked Hub/web/contract TypeScript including generate
 | Admission call expressions | 10 | Inventory for atomic migration, not target zero |
 | Historical SQL raises / committed functions | 278 / 4 | Informational only; existing catalog generator/check unchanged |
 
-`contracts/technical/error-model-census.json` stores baseline and explicitly activated zero targets, not per-occurrence semantic classifications. Replacing unit activates its own zeros; U2 is green with current baseline. Runtime invariants use tests, not AST inference. U8 must find no remaining replaced API, even under renamed local imports; use the inventory and actual call sites in addition to identifier checks.
+`contracts/technical/error-model-census.json` was specified to store baseline and explicitly activated zero targets, not per-occurrence semantic classifications; the tree holds no such record file today, and `scripts/check-error-model.mjs` holds the target names. Replacing unit activates its own zeros; U2 is green with current baseline. Runtime invariants use tests, not AST inference. U8 must find no remaining replaced API, even under renamed local imports; use the inventory and actual call sites in addition to identifier checks.
 
 Delete list by owner: U3 old Result alias; U4 prefixed admission throws/decoder, worker prose serializer/filter, old WorkerResult/PrepareResult and private status/body Reply carrier; U5 failureProblem/sendFailure/sendInternal/problemBody/causeText and handwritten public body assemblers; U6 HubFailure/ConexusError, generated failure decoder/HTTP_nnn/fallback, web failure module, starter lib/errors wrapper and old imports; U8 shape. No compatibility export, dual reader, legacy packet adapter or test-only retention.
 
@@ -164,10 +166,10 @@ Every card includes `npm run verify:quick`, its targeted behavioral/type checks 
 ### U2. Install the bounded removal check
 
 - **Already there**: Integrated U1, existing TypeScript AST API and verify graph; Deletes and census above.
-- **Creates**: `scripts/census-error-model.mjs` with list/check modes and record of baseline/activated zero targets; CI registration and minimal present/absent fixtures for named checks. Copy private bounded census source, strip machine paths. No product Result dependency.
+- **Creates**: `scripts/check-error-model.mjs` (specified as `scripts/census-error-model.mjs`) with list/check modes and record of baseline/activated zero targets; CI registration and minimal present/absent fixtures for named checks. Copy private bounded census source, strip machine paths. No product Result dependency.
 - **Satisfies**: AC-7, AC-8.
-- **Files**: Census script, `contracts/technical/error-model-census.json`, `scripts/conexus-verify.mjs`, optional `package.json`, repository test fixtures only.
-- **Copies**: R8; existing `census-builder-run.mjs` count/check pattern, adapted to named removals rather than semantic classification.
+- **Files**: Census script, `contracts/technical/error-model-census.json` and `scripts/conexus-verify.mjs` (neither is in the tree today; `scripts/check-error-model.mjs` holds the targets and `package.json` registers the check), optional `package.json`, repository test fixtures only.
+- **Copies**: R8; existing `census-builder-run.mjs` count/check pattern (that script was deleted since, with its record file; `scripts/check-builder-safety.mjs` keeps the part of its checks that remains), adapted to named removals rather than semantic classification.
 - **Guide sections**: A §2, C §10–§11, T structural checks, L required checks.
 - **Deletes**: Old spec's universal catch/reason/occurrence engine and duplicated SQL-replay proposal; neither is built.
 - **Proof**: Reproduce every bounded count above with file:line matches; renamed-import/embedded-source limitations documented. `--check` passes baseline, activated zero fixture fails on reintroduction. Existing catalog/generator checks remain unchanged. verify:quick.
@@ -179,7 +181,7 @@ Every card includes `npm run verify:quick`, its targeted behavioral/type checks 
 - **Already there**: U1/U2, genuinely approved spec and merged authorization; actual merged code/private-reason contract reread. Existing contract Reply, table and generator; shape/types.ts.
 - **Creates**: Type-only result.ts export; existing alias caller uses Reply. One sandbox-start row and generated outputs; C §6 clarification: “A caller-handled refusal returns the shared readonly Result with operation-specific table codes; escaping server faults retain native Failure, and received browser failures use the shared reader.” This states target ownership, not a ban on native SDK Errors or completion of deferred paths.
 - **Satisfies**: AC-1, AC-6 (row only), AC-7, AC-8.
-- **Files**: Contract result/index/operation; web app/http type import; failures.json, contract/Hub failure unions/text, app-failures and telemetry generated outputs; C guide; production type tests and census.
+- **Files**: Contract result/index/operation; web app/http type import; failures.json, contract/Hub failure unions/text, app-failures (deleted since; `packages/contract/src/failures.generated.ts` holds the app failure source) and telemetry generated outputs; C guide; production type tests and census.
 - **Copies**: R1–R3.
 - **Guide sections**: C §4/§6/§10, A §5, V Voice, H §5.
 - **Deletes**: Result=Reply alias and its import; no second handled Result spelling.
@@ -220,7 +222,7 @@ H rule added here: “Runner prepare/invoke handled answers are validated privat
 - **Already there**: U5 sender, U3 table, U4’s strengthened canonical Problem and current useful formatter callers. Read shape/client/schemas/usage; reader matrix and ownership.
 - **Creates**: Browser-only contract failure-client exports; direct web imports; app-only source emission from that owner with canonical Problem schema and app-audience text. Use U4’s canonical Problem trace/table-status validation and additionally reject body/response status disagreement at each received boundary; regenerate API outputs only if emission needs them. Actual web/generated fetch sites map rejection and preserve genuine abort. SDK boundary normalizes body/status into Response then uses same reader/code. V Voice clarification: “Failure text/action come from the audience's table; only a validated nonzero SYSTEM trace may appear as a reference.”
 - **Satisfies**: AC-5, AC-7, AC-8.
-- **Files**: Contract failure-client/index/problem and generated table support; scripts/generate-failures; Hub generated/app-failures and compiler generate-client; starter lib/errors deletion/README; web app/failure deletion, downstream consumers formerly using app/http reexports (listed in rationale), and all eight imports (attempt-key/foreign/http/route-params, builder/construir/run-failure.tsx, connector/connector-api, entry/entry-screens, identity-access/api), builder/mastra-session; four Builder examples form/list/record/dashboard and both Builder skills; DESIGN.md; API generated outputs, tests/census.
+- **Files**: Contract failure-client/index/problem and generated table support; scripts/generate-failures; Hub generated/app-failures (deleted since, as above) and compiler generate-client; starter lib/errors deletion/README; web app/failure deletion, downstream consumers formerly using app/http reexports (listed in rationale), and all eight imports (attempt-key/foreign/http/route-params, builder/construir/run-failure.tsx, connector/connector-api, entry/entry-screens, identity-access/api), builder/mastra-session; four Builder examples form/list/record/dashboard and both Builder skills; DESIGN.md; API generated outputs, tests/census.
 - **Copies**: R2/R3/R7/R8; packaging rationale explicitly says exact external emitter not found.
 - **Guide sections**: C §5/§6/§10, A §5/§8, H validated response, V Voice, P repair/user journeys, S §7, T artifacts/browser.
 - **Deletes**: HubFailure/ConexusError, web local module, app local failure()/HTTP_nnn/fallback/failureMessage, starter errorMessage/connectionMessage wrapper and old skill/example imports. Keep useful formatter names, including UUID run-id shortReference. No old-name alias or emitted web copy.
