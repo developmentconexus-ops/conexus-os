@@ -234,6 +234,32 @@ test('a refreshed auth file is captured and written back before an idle proxy\'s
   assert.deepEqual(JSON.parse(Buffer.from(stored.bytes).toString()), { type: 'antigravity', refresh_token: 'refreshed-token' })
 })
 
+test('a write-back that fails rejects the sweep and keeps the only copy of the refreshed record', async (t) => {
+  const { binary, stateDir } = scratch(t)
+  const { Failure } = await import(built('platform/failure.js'))
+  const pool = openPool(t, { binary, stateDir, idleMs: 0 })
+  const key = encodeKey(record('ana@example.com'))
+  const file = join(stateDir, instanceIdOf(key), 'auth', 'antigravity-ana@example.com.json')
+  const lease = await pool.acquire(key, async () => { throw new Failure('DATABASE_BUSY') })
+  const refreshedBytes = JSON.stringify({ type: 'antigravity', refresh_token: 'refreshed-token' })
+  writeFileSync(file, refreshedBytes)
+  lease.release()
+  await assert.rejects(pool.sweepIdle(new AbortController().signal), { id: 'DATABASE_BUSY' })
+  assert.equal(readFileSync(file, 'utf8'), refreshedBytes)
+})
+
+test('an instance copy that no longer parses writes nothing back and is deleted', async (t) => {
+  const { binary, stateDir } = scratch(t)
+  const pool = openPool(t, { binary, stateDir, idleMs: 0 })
+  const key = encodeKey(record('ana@example.com'))
+  const refreshed = []
+  const lease = await pool.acquire(key, async (refreshedKey) => { refreshed.push(refreshedKey) })
+  writeFileSync(join(stateDir, instanceIdOf(key), 'auth', 'antigravity-ana@example.com.json'), '{"type":"antigra')
+  lease.release()
+  await pool.sweepIdle(new AbortController().signal)
+  assert.deepEqual([refreshed, existsSync(join(stateDir, instanceIdOf(key)))], [[], false])
+})
+
 test('explicit pool and router close stop the proxy, write refreshed bytes, remove state, and close the listener', async (t) => {
   const { binary, stateDir } = scratch(t)
   const pool = openPool(t, { binary, stateDir })
