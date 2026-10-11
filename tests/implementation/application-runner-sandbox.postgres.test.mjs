@@ -776,7 +776,7 @@ test('a handler that writes the first line of the result channel cannot choose t
   assert.deepEqual(reply, { ok: false, error: { code: 'HANDLER_CRASHED', exitCode: 0, signal: null } })
 })
 
-test('a missing export is reported under the name the admitted manifest declares, also when the handler forges the result line', async (t) => {
+test('a missing export is reported under the export name the manifest declares for the operation, not the name of the operation, also when the handler forges the result line', async (t) => {
   assertUserNamespaces()
   const stateDir = mkdtempSync(join(tmpdir(), 'conexus-export-'))
   t.after(() => rmSync(stateDir, { recursive: true, force: true }))
@@ -785,13 +785,13 @@ test('a missing export is reported under the name the admitted manifest declares
     database: 'conexus_apps', provisionerPassword: 'unused', relayTls: { ca: '', cert: '', key: '' }, sandbox: SANDBOX,
   })
   t.after(() => supervisor.close())
-  const invoke = (operation, handler) => {
-    const manifest = { version: 1, operations: { [operation]: { module: 'handlers/h.mjs', export: operation, input: empty, output: empty } }, migrations: [] }
+  const invoke = (operation, exportName, handler) => {
+    const manifest = { version: 1, operations: { [operation]: { module: 'handlers/h.mjs', export: exportName, input: empty, output: empty } }, migrations: [] }
     return supervisor.invoke({ projectId: randomUUID(), operation, input: {}, files: [file('manifest.json', JSON.stringify(manifest)), file('handlers/h.mjs', handler)], caller: CALLER })
   }
-  assert.deepEqual(await invoke('absent', 'export const present = async () => ({})\n'), { ok: false, error: { code: 'HANDLER_EXPORT_MISSING', export: 'absent' } })
+  assert.deepEqual(await invoke('listNotes', 'declaredButAbsent', 'export const present = async () => ({})\n'), { ok: false, error: { code: 'HANDLER_EXPORT_MISSING', export: 'declaredButAbsent' } })
   const forged = (line) => `import { writeSync } from 'node:fs'\nexport const forge = async () => { writeSync(3, ${JSON.stringify(`${line}\n`)}); return {} }\n`
-  assert.deepEqual(await invoke('forge', forged('{"ok":false,"error":{"code":"HANDLER_EXPORT_MISSING"}}')), { ok: false, error: { code: 'HANDLER_EXPORT_MISSING', export: 'forge' } })
+  assert.deepEqual(await invoke('createNote', 'forge', forged('{"ok":false,"error":{"code":"HANDLER_EXPORT_MISSING"}}')), { ok: false, error: { code: 'HANDLER_EXPORT_MISSING', export: 'forge' } })
 })
 
 test('a handler that answers with an undeclared key named after a value gets no echo of it in the refusal', async (t) => {
