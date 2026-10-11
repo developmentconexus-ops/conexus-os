@@ -13,7 +13,8 @@ every item.
 2. The action map names actual imported owners, target signatures, decisive logic and AC/proof per
    file. Uncertain native contracts have executable and negative proof, not only declaration stubs.
    Your code matches the named `shape/` files (C §4–5).
-   If a shape conflicts with a guide, stop and report both file:lines under guide L.
+   If a `shape/` file conflicts with a guide, stop and report the conflict with both `file:line`s;
+   do not choose one ([L, Stop, then escalate](../../../../docs/development/delivery.md#stop-then-escalate)).
 3. You read each reference the card copies, at its `file:line`.
 4. You read the guide sections the card cites and the `AGENTS.md` of each area you touch.
 
