@@ -75,6 +75,8 @@ test('membership ids and Workspace names share the account read snapshot', async
   } finally {
     pg.Client.prototype.query = original
   }
+  assert.deepEqual((await query(connection, 'SELECT name FROM workspace.workspace WHERE workspace_id = $1', [ID.workspace])).rows, [{ name: 'Renamed' }])
   assert.deepEqual(await module.listAccessibleWorkspaces(ID.member), [])
   assert.deepEqual(await module.listAccessibleWorkspaces(ID.administrator), [])
+  assert.deepEqual(await module.listAccessibleWorkspaces(ID.memberAdministrator), [{ workspaceId: ID.workspace, name: 'Renamed' }])
 })
