@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import { test } from 'node:test'
+import pg from 'pg'
 import { hubModuleUrl } from './hub-build.mjs'
 import { query } from './hub-database.mjs'
 import { OWNER, setupBuilder } from './builder-fixture.mjs'
@@ -230,6 +231,38 @@ test('revoking the author refuses new work but the held owner can close the run 
   await assert.rejects(store.failBuilderRun({ builderRunId, failureCode: 'BUILDER_RUN_NOT_ADMITTED' }), { id: 'BUILDER_RUN_NOT_ADMITTED' })
 })
 
+test('a run whose author was removed records the end of its turn and writes no new content', async (t) => {
+  const { connection, store, running, seedBuilderProject } = await harness(t, 'conexus_builder_closure')
+  const projectId = await seedBuilderProject('Atlas')
+  const conversationId = randomUUID()
+  const builderRunId = await running(projectId, { accountId: ID.member, conversationId })
+  const session = async () => (await query(connection, 'SELECT mirror_head, last_turn_ended_at IS NOT NULL AS ended FROM builder.conversation_session WHERE conversation_id = $1', [conversationId])).rows
+  await store.recordConversationSession({ builderRunId, conversationId, mirrorHead: CANDIDATE, turnEnded: false })
+  await query(connection, 'DELETE FROM iam.workspace_membership WHERE account_id = $1', [ID.member])
+  await assert.rejects(store.recordConversationSession({ builderRunId, conversationId, mirrorHead: OTHER, turnEnded: false }), { id: 'BUILDER_RUN_NOT_ADMITTED' })
+  assert.deepEqual(await session(), [{ mirror_head: CANDIDATE, ended: false }])
+  await store.recordConversationSession({ builderRunId, conversationId, mirrorHead: OTHER, turnEnded: true })
+  assert.deepEqual(await session(), [{ mirror_head: CANDIDATE, ended: true }])
+})
+
+test('the native mount admits a builder on a read: it takes no lock, and refuses an outsider like every Project read', async (t) => {
+  const { connection, store, seedBuilderProject, onCleanup } = await harness(t, 'conexus_builder_mount_read')
+  const projectId = await seedBuilderProject('Atlas')
+  const holder = new pg.Client(connection)
+  await holder.connect()
+  onCleanup(() => holder.end().catch(() => undefined))
+  await holder.query('BEGIN')
+  await holder.query('SELECT 1 FROM project.project WHERE project_id = $1 FOR UPDATE', [projectId])
+  assert.equal(await store.admitBuilderRead({ accountId: ID.member, projectId }), undefined)
+  await assert.rejects(store.admitBuilderRead({ accountId: ID.outsider, projectId }), { id: 'PROJECT_NOT_FOUND' })
+  const command = store.admitBuilder({ accountId: ID.member, projectId })
+  const state = pending(command)
+  await waitUntilBlocked(connection)
+  assert.equal(state.settled, false, 'the command admission waits on the Project row the read did not touch')
+  await holder.query('ROLLBACK')
+  await command
+})
+
 test('a queued run ends unclaimed only while still queued and unowned, and a claim by a removed author never reaches RUNNING', async (t) => {
   const { connection, store, start, row, seedBuilderProject } = await harness(t, 'conexus_builder_unclaimed')
   const lost = await start(await seedBuilderProject('Lost'))
@@ -312,6 +345,12 @@ test('a conversation session and its sandbox belong to the run Project, and a pu
   assert.deepEqual(await session(conversationId), [{ project_id: projectId, mirror_head: CANDIDATE, synced_main: HEAD, provider_sandbox_id: null, ended: false }])
   await store.recordConversationSession({ builderRunId, conversationId, mirrorHead: OTHER, turnEnded: true })
   assert.deepEqual(await session(conversationId), [{ project_id: projectId, mirror_head: OTHER, synced_main: HEAD, provider_sandbox_id: null, ended: true }])
+  const endedAt = async () => (await query(connection, 'SELECT last_turn_ended_at FROM builder.conversation_session WHERE conversation_id = $1', [conversationId])).rows[0].last_turn_ended_at.getTime()
+  const firstTurn = await endedAt()
+  await store.recordConversationSession({ builderRunId, conversationId, mirrorHead: OTHER, turnEnded: false })
+  assert.equal(await endedAt(), firstTurn, 'a write that ends no turn keeps the marker')
+  await store.recordConversationSession({ builderRunId, conversationId, mirrorHead: OTHER, turnEnded: true })
+  assert.equal(await endedAt() > firstTurn, true, 'the marker is the end of the last turn, not of the first')
   await assert.rejects(store.recordConversationSession({ builderRunId, conversationId: foreign, mirrorHead: OTHER, turnEnded: true }), { id: 'BUILDER_CONVERSATION_SESSION_REFUSED' })
   assert.deepEqual(await session(foreign), [])
 

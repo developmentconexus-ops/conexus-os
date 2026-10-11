@@ -241,7 +241,7 @@ export const createConfiguredBuilderModule = ({ data, database, builder, factory
       await ready
       await registerBuilderSessionRoutes(app, {
         mastra, controller, conversations: liveConversations, controllerId: BUILDER_CONTROLLER_ID,
-        admitBuilder: ({ accountId, projectId }) => store.admitBuilder({ accountId, projectId }),
+        admitBuilder: ({ accountId, projectId }) => store.admitBuilderRead({ accountId, projectId }),
         conversationOwner: ({ projectId, conversationId }) => conversations.ownerOf(projectId, conversationId),
         projectBusy: async ({ accountId, projectId }) => {
           const latest = await store.readBuilderRun({ accountId, projectId })
