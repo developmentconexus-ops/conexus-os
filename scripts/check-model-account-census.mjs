@@ -9,6 +9,8 @@ const SUBJECT = /^(apps\/hub\/src\/(model-account\/|builder\/(model-account\/|mo
 const LIVE = /^(apps\/hub\/src\/|packages\/contract\/src\/|tests\/implementation\/|tests\/fixtures\/|scripts\/|infra\/backup\/|docs\/reference\/(security-and-authority|backup)\.md|docs\/specs\/0008-configuration-model\/|\.agents\/skills\/verify\/scripts\/)/
 const RETIRED = new Set(['createModelRouting', 'ModelRoutes', 'ModelRoute', 'takeFrom', 'routeOf', 'Taken', 'createModelAccounts', 'RunContext', 'ADMISSION_REFUSALS'])
 const OLD_NAME = /FactorySecretEncryption|FactorySecretKey|DecryptedFactorySecret|createFactorySecretEncryption|factorySecretEncryption|factorySecretKey|CONEXUS_FACTORY_(?:PREVIOUS_)?SECRET_KEY_FILES?|mastra:factory-secret:v1:|factory-secret-encryption/g
+// Every table the Builder owns, named alone or through its schema.
+const BUILDER_TABLE = /\bbuilder\.[a-z_]|builder_run|builder_conversation|conversation_session|project_working_state|project_repository/
 const CREDENTIAL = 'apps/hub/src/model-account/credential.ts'
 const POLICY = 'scripts/check-model-account-census.mjs'
 
@@ -18,6 +20,13 @@ function enclosingTest(node) {
     if (ts.isCallExpression(owner) && owner.expression.getText() === 'test' && ts.isStringLiteral(owner.arguments[0])) return owner.arguments[0].text
   }
   return null
+}
+// The specifier of an import, a re-export, a dynamic import, a require or an import type.
+function moduleSpecifierOf(node) {
+  if ((ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) return node.moduleSpecifier.text
+  if (ts.isCallExpression(node) && (node.expression.kind === ts.SyntaxKind.ImportKeyword || (ts.isIdentifier(node.expression) && node.expression.text === 'require')) && node.arguments[0] && ts.isStringLiteral(node.arguments[0])) return node.arguments[0].text
+  if (ts.isImportTypeNode(node) && ts.isLiteralTypeNode(node.argument) && ts.isStringLiteral(node.argument.literal)) return node.argument.literal.text
+  return undefined
 }
 function declaredLiteral(node, name, value) {
   return ts.isStringLiteral(node) && node.text === value && ts.isVariableDeclaration(node.parent)
@@ -64,8 +73,9 @@ function ownerHits(file, source) {
     if (file.startsWith('apps/hub/src/model-account/') && file !== CREDENTIAL && ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) && node.expression.name.text === 'codec') hit('misplacedCodecs', node, 'codec outside credential edge')
     if (ts.isIdentifier(node) && RETIRED.has(node.text)) hit('retiredApis', node, node.text)
     if (file.startsWith('apps/hub/src/model-account/')) {
-      if (ts.isImportDeclaration(node) && /builder/.test(node.moduleSpecifier.text)) hit('coreBuilderImports', node, node.moduleSpecifier.text)
-      if ((ts.isStringLiteral(node) || ts.isTemplateLiteralToken(node)) && /builder_run|builder_conversation/.test(node.text)) hit('coreBuilderTables', node, 'foreign table')
+      const specifier = moduleSpecifierOf(node)
+      if (specifier !== undefined && /builder/.test(specifier)) hit('coreBuilderImports', node, specifier)
+      if ((ts.isStringLiteral(node) || ts.isTemplateLiteralToken(node)) && BUILDER_TABLE.test(node.text)) hit('coreBuilderTables', node, 'foreign table')
     }
     ts.forEachChild(node, visit)
   }
