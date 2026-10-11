@@ -30,7 +30,7 @@ test('production start rejection settles the run with its named failure before b
     createBuilderRun: async () => ({ ...row }),
     claimBuilderRun: async () => Object.assign(row, { state: 'RUNNING' }),
     setBuilderRunPhase: async ({ phase }) => ({ ...Object.assign(row, { phase }) }),
-    readBuilderRun: async () => ({ ...row }),
+    readLatestRun: async () => ({ ...row }),
     failBuilderRun: async ({ failureCode }) => { Object.assign(row, { state: 'FAILED', phase: null, failureCode }) },
     bindBuilderRunSandbox: async ({ sandboxId }) => { pointers.sandboxId = sandboxId },
     recordConversationSandbox: async () => { calls.push('record-sandbox') },

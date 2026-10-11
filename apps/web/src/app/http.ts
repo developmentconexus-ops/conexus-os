@@ -19,6 +19,31 @@ const urlOf = (op: AnyOperation, input: Input<AnyOperation>): string => {
   return query.size === 0 ? path : `${path}?${query}`
 }
 
+type ProjectSubject = Readonly<{ projectId: string; reread: boolean }>
+
+// The one place a request leaves the page. Every refusal the Hub answers crosses the shared reader
+// here, and what it says about the session or the Project drops what the page had cached.
+async function send(url: RequestInfo | URL, init: RequestInit, project: ProjectSubject | null): Promise<Response> {
+  let response: Response
+  try {
+    response = await fetch(url, { ...init, credentials: 'same-origin' })
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') throw error
+    throw new ReceivedFailure('HUB_UNREACHABLE', null)
+  }
+  if (response.ok) return response
+  if (response.status === 401) clearAuthorityCache()
+  const failure = await readFailure(response)
+  if (project) {
+    if (failure.code === 'PROJECT_NOT_FOUND') {
+      clearProjectCache(project.projectId)
+      if (project.reread) refreshProjectCache(project.projectId)
+    }
+    if (failure.code === 'PROJECT_DELETING') refreshProjectCache(project.projectId)
+  }
+  throw failure
+}
+
 export function call<O extends JsonOperation>(op: O, input: Input<NoInfer<O>>, options?: { signal?: AbortSignal }): Promise<Reply<O>>
 export async function call(op: JsonOperation, input: Input<AnyOperation>, options: { signal?: AbortSignal } = {}): Promise<unknown> {
   const headers: Record<string, string> = {}
@@ -28,31 +53,14 @@ export async function call(op: JsonOperation, input: Input<AnyOperation>, option
     }
   }
   if (op.body !== null) headers['content-type'] = 'application/json'
-  let response: Response
-  try {
-    response = await fetch(urlOf(op, input), {
-      method: op.method,
-      credentials: 'same-origin',
-      headers,
-      ...(op.body === null ? {} : { body: JSON.stringify(input.body) }),
-      ...(options.signal ? { signal: options.signal } : {}),
-    })
-  } catch (error) {
-    if (error instanceof DOMException && error.name === 'AbortError') throw error
-    throw new ReceivedFailure('HUB_UNREACHABLE', null)
-  }
-  if (!response.ok) {
-    if (response.status === 401) clearAuthorityCache()
-    const failure = await readFailure(response)
-    if (typeof input.params === 'object' && input.params !== null && 'projectId' in input.params && typeof input.params.projectId === 'string') {
-      if (failure.code === 'PROJECT_NOT_FOUND') {
-        clearProjectCache(input.params.projectId)
-        if (op.id !== 'getProject') refreshProjectCache(input.params.projectId)
-      }
-      if (failure.code === 'PROJECT_DELETING') refreshProjectCache(input.params.projectId)
-    }
-    throw failure
-  }
+  const { params } = input
+  const projectId = typeof params === 'object' && params !== null && 'projectId' in params && typeof params.projectId === 'string' ? params.projectId : null
+  const response = await send(urlOf(op, input), {
+    method: op.method,
+    headers,
+    ...(op.body === null ? {} : { body: JSON.stringify(input.body) }),
+    ...(options.signal ? { signal: options.signal } : {}),
+  }, projectId === null ? null : { projectId, reread: op.id !== 'getProject' })
   const success = Object.entries(op.success)
   const entry = success.find(([status]) => Number(status) === response.status)
   if (!entry) throw new ReceivedFailure('HUB_RESPONSE_UNREADABLE', response.status)
@@ -76,5 +84,6 @@ export const query = <O extends JsonOperation>(op: O, input: Input<O>) => ({
 /** @public Frozen by spec 0015 section 3; first used by the parts that declare GET operations. */
 export const href = <O extends BinaryOperation>(op: O, input: Input<O>): string => urlOf(op, input)
 
-export const hubFetch = (input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> =>
-  fetch(input, { ...init, credentials: 'same-origin' })
+/** The fetch a Project's native session routes go through, so they answer a refusal like every other call. */
+export const projectFetch = (projectId: string) => (input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> =>
+  send(input, init, { projectId, reread: true })

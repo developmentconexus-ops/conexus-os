@@ -49,7 +49,6 @@ export const FAILURE_TEXT = {
   'SESSION_STATE_REFUSED': 'Só o nível de raciocínio pode ser alterado aqui.',
   'BUILDER_SESSION_NOT_FOUND': 'Não encontramos essa sessão do Builder.',
   'CONVERSATION_SESSION_REFUSED': 'A sessão de uma conversa só abre na própria conversa.',
-  'CONVERSATION_CONFLICT': 'Esse identificador de conversa já está em uso.',
   'BUILDER_BUSY': 'O modelo só muda quando o Builder está parado.',
   'BUILDER_RUN_STOP_REFUSED': 'Uma execução só para pelo botão de parar.',
   'TOOL_ANSWER_ALREADY_GIVEN': 'Esta pergunta já foi respondida.',

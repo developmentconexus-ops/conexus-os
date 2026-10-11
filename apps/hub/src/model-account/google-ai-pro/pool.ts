@@ -9,7 +9,8 @@ import { join } from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
 import { z } from 'zod'
 import { decodeKey, encodeKey, type InstanceId, instanceIdOf } from '../credential.js'
-import { Failure } from '../../platform/failure.js'
+import { Failure, logFailure, toFailure } from '../../platform/failure.js'
+import { logger } from '../../platform/logger.js'
 
 type Ready = {
   state: 'ready'
@@ -119,23 +120,30 @@ type PoolOptions = Readonly<{
 }>
 type PoolState = Required<PoolOptions> & { instances: Map<InstanceId, Instance>; logins: Set<LoginInstance>; refreshTargets: Map<InstanceId, PersistGoogleAiProRefresh>; closed: boolean }
 
-// Reads back whatever CLIProxyAPI last wrote to the instance's own copy of the record, before
-  // that copy is deleted. Best-effort: a record that no longer parses (the instance crashed
-  // mid-write, or never signed in) is left alone rather than persisted over a good one.
-async function captureRefresh(state: PoolState, id: InstanceId, dir: string): Promise<void> {
-    const persistRefresh = state.refreshTargets.get(id)
-    if (!persistRefresh) return
-    try {
-      const authDir = join(dir, 'auth')
-      const fileName = (await readdir(authDir)).find(isAuthFileName)
-      if (!fileName) return
-      const refreshed = encodeKey({ fileName, bytes: new Uint8Array(await readFile(join(authDir, fileName))) })
-      await persistRefresh(refreshed)
-    } catch {
-      // Best-effort: the instance's own stored record, if any, is still the last write-back.
-    }
-  }
+function missing(error: unknown): boolean { return error instanceof Error && 'code' in error && error.code === 'ENOENT' }
 
+// The record CLIProxyAPI last wrote to the instance's own copy, or null when it left none that
+// parses: the instance crashed mid-write or never signed in, and the stored row stays the last
+// write-back.
+async function readRecord(authDir: string): Promise<GoogleAiProKey | null> {
+  try {
+    const fileName = (await readdir(authDir)).find(isAuthFileName)
+    if (!fileName) return null
+    return encodeKey({ fileName, bytes: new Uint8Array(await readFile(join(authDir, fileName))) })
+  } catch (error) {
+    if (missing(error) || (error instanceof Failure && error.id === 'GOOGLE_AI_PRO_RECORD_REFUSED')) return null
+    throw toFailure(error)
+  }
+}
+
+// Runs before the instance's copy is deleted. A write-back that fails rejects, so the caller keeps
+// the directory: it holds the only copy of a token the provider already rotated.
+async function captureRefresh(state: PoolState, id: InstanceId, dir: string): Promise<void> {
+  const persistRefresh = state.refreshTargets.get(id)
+  if (!persistRefresh) return
+  const refreshed = await readRecord(join(dir, 'auth'))
+  if (refreshed) await persistRefresh(refreshed)
+}
 
 async function waitReady({ state, child, url, proxyKey }: Readonly<{ state: PoolState; child: ChildProcess; url: string; proxyKey: string }>): Promise<boolean> {
     for (const deadline = Date.now() + state.readyTimeoutMs; Date.now() < deadline; await delay(100)) {
@@ -209,7 +217,7 @@ async function startInstance(state: PoolState, id: InstanceId, key: GoogleAiProK
       child.once('exit', () => {
         if (state.instances.get(id) !== ready) return
         state.instances.delete(id)
-        void captureRefresh(state, id, dir).finally(() => rm(dir, { recursive: true, force: true }))
+        void captureRefresh(state, id, dir).then(() => rm(dir, { recursive: true, force: true })).catch((error: unknown) => logFailure(logger, toFailure(error)))
       })
       state.instances.set(id, ready)
       return ready
@@ -323,6 +331,7 @@ async function sweepOrphans(state: PoolState): Promise<void> {
   }
 
 
+// Returns only once every stop and every write-back has settled. Nobody can retry a close, so each failure is logged here.
 async function closePool(state: PoolState): Promise<void> {
     state.closed = true
     const pending = [...state.instances.entries()].map(async ([id, instance]) => {
@@ -335,7 +344,9 @@ async function closePool(state: PoolState): Promise<void> {
         await instance.done
       }
     })
-    await Promise.all([...pending, ...[...state.logins].map((login) => login.close())])
+    for (const outcome of await Promise.allSettled([...pending, ...[...state.logins].map((login) => login.close())])) {
+      if (outcome.status === 'rejected') logFailure(logger, toFailure(outcome.reason))
+    }
   }
 
 export function createCliproxyPool({ binary, stateDir, idleMs = 10 * 60_000, readyTimeoutMs = 10_000, authReadyTimeoutMs = AUTH_READY_TIMEOUT_MS }: PoolOptions): CliproxyPool {

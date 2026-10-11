@@ -27,26 +27,9 @@ const refused = (): Failure => new Failure('BUILDER_CONVERSATION_SESSION_REFUSED
 // A session row is the run's own conversation in the run's own Project, so one statement checks both against the run row the proof names.
 export const createConversationStore = ({ database, ownerId }: Readonly<{ database: Database; ownerId: string }>): ConversationStore => ({
   recordConversationSession: async ({ builderRunId, conversationId, mirrorHead, syncedMain, turnEnded }) => {
-    const writeContent = () => withRun(database, ownerId, builderRunId, { via: 'executor' }, async ({ scope, tx }) => {
-      const written = await tx.run(sql`
-        INSERT INTO builder.conversation_session AS session (conversation_id, project_id, mirror_head, synced_main)
-        SELECT ${conversationId}, run.project_id, ${mirrorHead}, ${syncedMain ?? null}
-        FROM builder.builder_run AS run
-        WHERE run.builder_run_id = ${scope.builderRunId} AND run.project_id = ${scope.projectId} AND run.conversation_id = ${conversationId}
-        ON CONFLICT (conversation_id) DO UPDATE SET
-          mirror_head = EXCLUDED.mirror_head,
-          synced_main = COALESCE(EXCLUDED.synced_main, session.synced_main)
-        WHERE session.project_id = ${scope.projectId}`)
-      if (written !== 1) throw refused()
-    })
-    let refusedNewWork = false
-    try {
-      await writeContent()
-    } catch (error) {
-      if (!(error instanceof Failure) || error.id !== 'BUILDER_RUN_NOT_ADMITTED' || !turnEnded) throw error
-      refusedNewWork = true
-    }
-    if (turnEnded) await database.system('builder-executor', async (gate) => {
+    // A run that is no longer admitted writes no new content. The end of its turn is closure of
+    // work already admitted, so the executor that still holds the open run records that alone.
+    const closeTurn = () => database.system('builder-executor', async (gate) => {
       const proof = await admitSystem(gate, 'builder-executor')
       const { tx } = proof
       const place = await tx.maybe(RunPlace, sql`SELECT project_id, conversation_id FROM builder.builder_run WHERE builder_run_id = ${builderRunId}`)
@@ -56,11 +39,26 @@ export const createConversationStore = ({ database, ownerId }: Readonly<{ databa
         WHERE builder_run_id = ${builderRunId} AND project_id = ${place.project_id} AND state = ANY(${OPEN_RUN_STATES}::text[]) FOR UPDATE`)
       if (run?.owner_id !== ownerId || run.conversation_id !== conversationId) throw refused()
       const written = await tx.run(sql`
-        UPDATE builder.conversation_session SET last_turn_ended_at = COALESCE(last_turn_ended_at, clock_timestamp())
+        UPDATE builder.conversation_session SET last_turn_ended_at = clock_timestamp()
         WHERE project_id = ${place.project_id} AND conversation_id = ${conversationId}`)
       if (written !== 1) throw refused()
     })
-    if (refusedNewWork) return
+    await withRun(database, ownerId, builderRunId, { via: 'executor' }, async ({ scope, tx }) => {
+      const written = await tx.run(sql`
+        INSERT INTO builder.conversation_session AS session (conversation_id, project_id, mirror_head, synced_main, last_turn_ended_at)
+        SELECT ${conversationId}, run.project_id, ${mirrorHead}, ${syncedMain ?? null}, CASE WHEN ${turnEnded}::boolean THEN clock_timestamp() END
+        FROM builder.builder_run AS run
+        WHERE run.builder_run_id = ${scope.builderRunId} AND run.project_id = ${scope.projectId} AND run.conversation_id = ${conversationId}
+        ON CONFLICT (conversation_id) DO UPDATE SET
+          mirror_head = EXCLUDED.mirror_head,
+          synced_main = COALESCE(EXCLUDED.synced_main, session.synced_main),
+          last_turn_ended_at = COALESCE(EXCLUDED.last_turn_ended_at, session.last_turn_ended_at)
+        WHERE session.project_id = ${scope.projectId}`)
+      if (written !== 1) throw refused()
+    }).catch((error: unknown) => {
+      if (!(error instanceof Failure) || error.id !== 'BUILDER_RUN_NOT_ADMITTED' || !turnEnded) throw error
+      return closeTurn()
+    })
   },
   recordConversationSandbox: async ({ builderRunId, conversationId, providerSandboxId }) => {
     if (!PROVIDER_SANDBOX_ID.test(providerSandboxId)) throw refused()

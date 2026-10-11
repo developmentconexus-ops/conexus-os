@@ -18,11 +18,8 @@ export const registerProjectRoutes = async (
   route.operation(listProjects, (input, session) =>
     store.listProjects({ accountId: session.account.accountId, workspaceId: input.params.workspaceId }))
 
-  route.operation(getProject, async (input, session) => {
-    const project = await store.getProject({ accountId: session.account.accountId, projectId: input.params.projectId })
-    if (!project) throw new Failure('PROJECT_NOT_FOUND')
-    return project
-  })
+  route.operation(getProject, (input, session) =>
+    store.getProject({ accountId: session.account.accountId, projectId: input.params.projectId }))
 
   route.operation(createProject, async (input, session) => {
     const { reply } = await store.createProject({

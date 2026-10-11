@@ -434,17 +434,17 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
     },
     'listProjectSourceTree': {
       own: async () => assert.equal(await builder.admitSourceRevision({ accountId: member, projectId: projectA, sourceRevision: FOREIGN_BASE, readMain: async () => FOREIGN_BASE }), true),
-      cross: async () => assert.equal(await builder.admitSourceRevision({ accountId: member, projectId: projectB, sourceRevision: FOREIGN_BASE, readMain: async () => FOREIGN_BASE }), false),
+      cross: () => assert.rejects(builder.admitSourceRevision({ accountId: member, projectId: projectB, sourceRevision: FOREIGN_BASE, readMain: async () => FOREIGN_BASE }), { id: 'PROJECT_NOT_FOUND' }),
       child: null,
     },
     'getProjectSourceFile': {
       own: async () => assert.equal(await builder.admitSourceRevision({ accountId: member, projectId: projectA, sourceRevision: FOREIGN_BASE, readMain: async () => FOREIGN_BASE }), true),
-      cross: async () => assert.equal(await builder.admitSourceRevision({ accountId: member, projectId: projectB, sourceRevision: FOREIGN_BASE, readMain: async () => FOREIGN_BASE }), false),
+      cross: () => assert.rejects(builder.admitSourceRevision({ accountId: member, projectId: projectB, sourceRevision: FOREIGN_BASE, readMain: async () => FOREIGN_BASE }), { id: 'PROJECT_NOT_FOUND' }),
       child: null,
     },
     'compareProjectSourceRevisions': {
       own: async () => assert.equal(await builder.admitSourceRevision({ accountId: member, projectId: projectA, sourceRevision: FOREIGN_BASE, readMain: async () => FOREIGN_BASE }), true),
-      cross: async () => assert.equal(await builder.admitSourceRevision({ accountId: member, projectId: projectB, sourceRevision: FOREIGN_BASE, readMain: async () => FOREIGN_BASE }), false),
+      cross: () => assert.rejects(builder.admitSourceRevision({ accountId: member, projectId: projectB, sourceRevision: FOREIGN_BASE, readMain: async () => FOREIGN_BASE }), { id: 'PROJECT_NOT_FOUND' }),
       child: null,
     },
     'getBuilderSession': {

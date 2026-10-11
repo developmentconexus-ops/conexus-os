@@ -34,32 +34,29 @@ const tombstoneOf = (tx: WriteTx, projectId: ProjectIdType) => tx.maybe(Tombston
 
 
 
-const settled = (tombstone: z.output<typeof Tombstone>, confirmName: string): Readonly<{ completed: boolean }> => {
-  if (tombstone.name !== confirmName) throw new Failure('PROJECT_NAME_MISMATCH')
-  return { completed: tombstone.completed_at !== null }
-}
-
 export function createProjectDeletion({ database, ports }: Readonly<{ database: Database; ports: ProjectDeletionPorts }>) {
   // The owner's command locks its account and membership before the Project row.
   const begin = ({ accountId, projectId, confirmName }: DeleteProjectInput) => database.transaction(accountId, async (gate) => {
     const proof = await admitProject(gate, { projectId, action: 'project.delete' })
     const { tx, scope } = proof
-    const target = await tx.maybe(Target, sql`SELECT workspace_id, name FROM project.project WHERE project_id = ${projectId} FOR UPDATE`)
-    const concurrent = await tombstoneOf(tx, projectId)
-    if (concurrent) return settled(concurrent, confirmName)
-    if (!target) throw new Failure('PROJECT_NOT_FOUND')
+    const target = await tx.one(Target, sql`SELECT workspace_id, name FROM project.project WHERE project_id = ${projectId} FOR UPDATE`, 'INTERNAL_UNEXPECTED')
+    // The admitted Project is present, so a deletion found here is open: this call resumes it.
+    const open = await tombstoneOf(tx, projectId)
+    if (open) {
+      if (open.name !== confirmName) throw new Failure('PROJECT_NAME_MISMATCH')
+      return
+    }
     if (target.name !== confirmName) throw new Failure('PROJECT_NAME_MISMATCH')
     if (await ports.hasOpenProjectRun(proof, projectId)) throw new Failure('PROJECT_BUSY')
     const written = await tx.run(sql`
       INSERT INTO project.project_deletion (project_id, workspace_id, name, requested_by)
       SELECT project_id, workspace_id, name, ${scope.accountId}::uuid FROM project.project WHERE project_id = ${projectId}`)
     if (written !== 1) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'PROJECT_TOMBSTONE_NOT_WRITTEN' } })
-    return { completed: false }
   })
 
   const finalizeDeletion = async (proof: Admitted<SystemScope<'project-purge'>>, projectId: ProjectIdType) => {
     const { tx } = proof
-    // The purge takes the project row first, like every admission that reaches it; a retry after the row is gone goes on.
+    // The purge takes the project row first, like every admission that reaches it.
     const target = await tx.maybe(Present, sql`SELECT 1 AS present FROM project.project WHERE project_id = ${projectId} FOR UPDATE`)
     const deletion = await tombstoneOf(tx, projectId)
     if (deletion?.completed_at) return
@@ -82,8 +79,7 @@ export function createProjectDeletion({ database, ports }: Readonly<{ database: 
     })
     await database.session('conexus-hub:project-deletion', async (lock, lost) => {
       if (!(await lock.tryAdvisoryLock(BigInt(lockKey.lock_key)))) throw new Failure('PROJECT_BUSY')
-      const tombstone = await begin(input)
-      if (tombstone.completed) return
+      await begin(input)
       try {
         for (const cleanup of [ports.releaseApplicationData, ports.killSandboxes, ports.deleteRepository]) {
           if (lost.aborted) throw new Failure('PROJECT_DELETION_INCOMPLETE', { cause: lost.reason })

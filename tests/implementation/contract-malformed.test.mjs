@@ -70,3 +70,21 @@ test('an operation declares a failure once: not in failures when malformed or it
     assert.deepEqual(op.failures.filter((code) => implied.has(code)), [], op.id)
   }
 })
+
+// The person admissions answer an absent or deactivated Account before they look at their subject.
+// These operations never surface that answer: an administrator command answers its own refusal, a
+// sign-in start reads no account, and a sign-in that cannot store its account ends as failed.
+const NO_ACCOUNT_REFUSAL = [
+  'addInstallationAdministrator', 'removeInstallationAdministrator',
+  'createWorkspaceConnection', 'checkWorkspaceConnection', 'disableWorkspaceConnection',
+  'startClaudeModelLogin', 'completeClaudeModelLogin', 'startCodexModelLogin', 'pollCodexModelLogin',
+  'startGoogleModelLogin', 'completeGoogleModelLogin', 'getGoogleModelLoginStatus',
+]
+
+test('every session operation that admits a person declares both Account refusals', () => {
+  const session = Object.values(OPERATIONS).filter((op) => op.access === 'session')
+  const declaring = session.filter((op) => ['ACCOUNT_INACTIVE', 'ACCOUNT_NOT_FOUND'].every((code) => op.failures.includes(code))).map((op) => op.id)
+  assert.deepEqual(session.map((op) => op.id).filter((id) => !declaring.includes(id)).sort(), [...NO_ACCOUNT_REFUSAL].sort())
+  assert.equal(declaring.length, 34)
+  assert.equal(declaring.includes('getSession'), true)
+})

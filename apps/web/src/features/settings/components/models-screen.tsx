@@ -6,7 +6,7 @@ import { PageHeader } from './page-header'
 
 export function ModelsScreen() {
   return <main className="cxs-page">
-    <PageHeader title="Minhas contas de modelo" lead="Cada pessoa usa a própria conta. Uma conta compartilhada pela instalação atende quem não conectou a sua." />
+    <PageHeader title="Minhas contas de modelo" lead="Cada pessoa usa a própria conta." />
     <GoogleAiProAccount />
     <ChatGptAccount />
     <ClaudeAccount />

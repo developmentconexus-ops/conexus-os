@@ -86,7 +86,7 @@ test('Builder and memory consume the concrete owner, record the actual payer bef
   const runId = await f.seedRun(projectId)
   await query(f.connection, "INSERT INTO model.installation_default(role, model_id, updated_by) VALUES ('build', 'anthropic/claude-sonnet-5', $1), ('memory', 'anthropic/claude-haiku-4-5', $1)", [ID.owner])
   const builder = createBuilderStore({ database: f.database, ownerId: OWNER, registry: {} })
-  const routing = createBuilderModelRouting({ models: f.models, data: f.database, owner: { ownerId: OWNER }, conversationModel: async () => null,
+  const routing = createBuilderModelRouting({ models: f.models, data: f.database, owner: { ownerId: OWNER }, conversationModel: async () => ({ state: 'default' }),
     record: (builderRunId, accountId, modelAccountId) => builder.recordBuilderRunModelAccount({ builderRunId, accountId, modelAccountId }) })
   await routing.check({ accountId: ID.owner, projectId, conversationId: projectId })
   const seen = []
@@ -244,6 +244,19 @@ test('native Claude refresh is shared by real runs, commits before Messages and 
   assert.equal(requests.length, 1)
 })
 
+test('a model call of a run whose author was removed is refused as not admitted, not with the author\'s own refusal', async (t) => {
+  const f = await setupModelAccounts(t, 'conexus_model_removed_author')
+  await f.connect({ provider: 'anthropic', kind: 'api_key', value: AnthropicKey.parse(key) })
+  const projectId = await f.seedBuilderProject()
+  const runId = await f.seedRun(projectId)
+  const routing = createBuilderModelRouting({ models: f.models, data: f.database, owner: { ownerId: OWNER }, conversationModel: async () => ({ state: 'default' }), record: async () => {} })
+  const carried = context(runId, projectId, 'anthropic/claude-sonnet-5')
+  await routing.resolve({ requestContext: carried })
+  await query(f.connection, 'DELETE FROM iam.workspace_membership WHERE account_id = $1', [ID.owner])
+  const refused = await routing.resolve({ requestContext: carried }).then(() => null, (error) => error)
+  assert.deepEqual([refused.id, refused.cause.id], ['BUILDER_RUN_NOT_ADMITTED', 'PROJECT_NOT_FOUND'])
+})
+
 test('actual personal selection refuses absent and unsupported providers, retains defaults and records both model accounts', async (t) => {
   const f = await setupModelAccounts(t, 'conexus_model_selection')
   const anthropic = await f.connect({ provider: 'anthropic', kind: 'api_key', value: AnthropicKey.parse(key) })
@@ -251,7 +264,7 @@ test('actual personal selection refuses absent and unsupported providers, retain
   const projectId = await f.seedBuilderProject()
   const runId = await f.seedRun(projectId)
   const builder = createBuilderStore({ database: f.database, ownerId: OWNER, registry: {} })
-  const routing = createBuilderModelRouting({ models: f.models, data: f.database, owner: { ownerId: OWNER }, conversationModel: async () => null,
+  const routing = createBuilderModelRouting({ models: f.models, data: f.database, owner: { ownerId: OWNER }, conversationModel: async () => ({ state: 'default' }),
     record: (builderRunId, accountId, modelAccountId) => builder.recordBuilderRunModelAccount({ builderRunId, accountId, modelAccountId }) })
   const check = () => routing.check({ accountId: ID.owner, projectId, conversationId: projectId })
   await assert.rejects(check(), { id: 'BUILDER_MODEL_NOT_SELECTED' })
@@ -355,6 +368,44 @@ test('an ended winning run keeps the successfully rotated row but cannot receive
   const next = await selectedClaude(f, f.openRun(await f.seedRun(projectId)))
   assert.equal((await refusalOf(next)).statusCode, 418)
   assert.equal(provider.requests.filter(({ kind }) => kind === 'refresh').length, 1)
+})
+
+test('a winning run that ended before the token request passes the refresh to its admitted waiting peer', async (t) => {
+  const f = await setupModelAccounts(t, 'conexus_model_unadmitted_winner')
+  await expiredClaude(f)
+  const projects = await Promise.all([f.seedBuilderProject(), f.seedBuilderProject()])
+  const [winnerRun, peerRun] = await Promise.all(projects.map((projectId) => f.seedRun(projectId)))
+  const turn = deferred()
+  const ended = deferred()
+  const waiting = deferred()
+  let winnerReads = 0
+  const winnerOpenRun = async (work) => {
+    if (++winnerReads === 3) { turn.resolve(); await ended.promise }
+    return f.openRun(winnerRun)(work)
+  }
+  let peerReads = 0
+  const peerOpenRun = async (work) => {
+    const result = await f.openRun(peerRun)(work)
+    if (++peerReads === 2) waiting.resolve()
+    return result
+  }
+  const winner = await selectedClaude(f, winnerOpenRun)
+  const peer = await selectedClaude(f, peerOpenRun)
+  const provider = await pausedClaude(t, f)
+  provider.release.resolve()
+  t.after(() => ended.resolve())
+  const winnerCall = refusalOf(winner)
+  await turn.promise
+  const peerCall = refusalOf(peer)
+  await waiting.promise
+  await query(f.connection, "UPDATE builder.builder_run SET state = 'SUCCEEDED', result_kind = 'RESPONSE_ONLY', finished_at = clock_timestamp() WHERE builder_run_id = $1", [winnerRun])
+  ended.resolve()
+  const [winnerError, peerError] = await Promise.all([winnerCall, peerCall])
+  assert.equal(winnerError.id, 'BUILDER_RUN_NOT_ADMITTED')
+  assert.equal(peerError.statusCode, 418)
+  assert.equal(provider.requests.filter(({ kind }) => kind === 'refresh').length, 1)
+  assert.deepEqual(provider.requests.filter(({ kind }) => kind === 'model'), [{ kind: 'model', bearer: 'Bearer synthetic-rotated' }])
+  assert.equal((await storedCredential(f, 'anthropic')).value.access, 'synthetic-rotated')
 })
 
 
@@ -536,7 +587,7 @@ test('real PostgreSQL timeout diagnosis survives Builder admission and native re
     }
     return work(gate)
   }) }
-  const routing = createBuilderModelRouting({ data, models: f.models, owner: { ownerId: OWNER }, conversationModel: async () => null,
+  const routing = createBuilderModelRouting({ data, models: f.models, owner: { ownerId: OWNER }, conversationModel: async () => ({ state: 'default' }),
     record: async () => undefined })
   const carried = context(runId, projectId, 'anthropic/claude-sonnet-5')
   const assertDiagnosis = (actual) => {

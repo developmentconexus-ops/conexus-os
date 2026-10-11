@@ -7,6 +7,7 @@ import { join } from 'node:path'
 import { test } from 'node:test'
 import { setTimeout as delay } from 'node:timers/promises'
 import { hubModuleUrl } from './hub-build.mjs'
+import { takeHubLogs } from './hub-log-capture.mjs'
 
 const { GoogleAiProKey, encodeCredential } = await import(hubModuleUrl('model-account/credential.js'))
 
@@ -232,6 +233,52 @@ test('a refreshed auth file is captured and written back before an idle proxy\'s
   const stored = decodeKey(refreshed[0])
   assert.equal(stored.fileName, 'antigravity-ana@example.com.json')
   assert.deepEqual(JSON.parse(Buffer.from(stored.bytes).toString()), { type: 'antigravity', refresh_token: 'refreshed-token' })
+})
+
+test('a write-back that fails rejects the sweep and keeps the only copy of the refreshed record', async (t) => {
+  const { binary, stateDir } = scratch(t)
+  const { Failure } = await import(built('platform/failure.js'))
+  const pool = openPool(t, { binary, stateDir, idleMs: 0 })
+  const key = encodeKey(record('ana@example.com'))
+  const file = join(stateDir, instanceIdOf(key), 'auth', 'antigravity-ana@example.com.json')
+  const lease = await pool.acquire(key, async () => { throw new Failure('DATABASE_BUSY') })
+  const refreshedBytes = JSON.stringify({ type: 'antigravity', refresh_token: 'refreshed-token' })
+  writeFileSync(file, refreshedBytes)
+  lease.release()
+  await assert.rejects(pool.sweepIdle(new AbortController().signal), { id: 'DATABASE_BUSY' })
+  assert.equal(readFileSync(file, 'utf8'), refreshedBytes)
+})
+
+test('a close waits for every write-back, logs each one that failed, and keeps only the copies it could not write', async (t) => {
+  const { binary, stateDir } = scratch(t)
+  const { Failure } = await import(built('platform/failure.js'))
+  const pool = createCliproxyPool({ binary, stateDir })
+  const [failing, slow] = [encodeKey(record('ana@example.com')), encodeKey(record('bia@example.com'))]
+  const written = []
+  const leases = [
+    await pool.acquire(failing, async () => { throw new Failure('DATABASE_BUSY') }),
+    await pool.acquire(slow, async (refreshedKey) => { await delay(200); written.push(refreshedKey) }),
+  ]
+  writeFileSync(join(stateDir, instanceIdOf(failing), 'auth', 'antigravity-ana@example.com.json'), JSON.stringify({ type: 'antigravity', refresh_token: 'refreshed-ana' }))
+  writeFileSync(join(stateDir, instanceIdOf(slow), 'auth', 'antigravity-bia@example.com.json'), JSON.stringify({ type: 'antigravity', refresh_token: 'refreshed-bia' }))
+  for (const lease of leases) lease.release()
+  takeHubLogs()
+  await pool.close()
+  assert.equal(written.length, 1, 'the other instance had written back when close returned')
+  assert.deepEqual(takeHubLogs().map(({ message }) => message), ['DATABASE_BUSY'])
+  assert.deepEqual([existsSync(join(stateDir, instanceIdOf(failing))), existsSync(join(stateDir, instanceIdOf(slow)))], [true, false])
+})
+
+test('an instance copy that no longer parses writes nothing back and is deleted', async (t) => {
+  const { binary, stateDir } = scratch(t)
+  const pool = openPool(t, { binary, stateDir, idleMs: 0 })
+  const key = encodeKey(record('ana@example.com'))
+  const refreshed = []
+  const lease = await pool.acquire(key, async (refreshedKey) => { refreshed.push(refreshedKey) })
+  writeFileSync(join(stateDir, instanceIdOf(key), 'auth', 'antigravity-ana@example.com.json'), '{"type":"antigra')
+  lease.release()
+  await pool.sweepIdle(new AbortController().signal)
+  assert.deepEqual([refreshed, existsSync(join(stateDir, instanceIdOf(key)))], [[], false])
 })
 
 test('explicit pool and router close stop the proxy, write refreshed bytes, remove state, and close the listener', async (t) => {

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { ModelLoginId } from './ids.js';
-import { operation } from './operation.js';
+import { ACCOUNT_REFUSALS, operation } from './operation.js';
 export const ModelAccountProvider = z.enum(['anthropic', 'openai-codex', 'google-ai-pro']).meta({ id: 'ModelAccountProvider' });
 export const ModelAccountKind = z.enum(['api_key', 'oauth', 'google_ai_pro']).meta({ id: 'ModelAccountKind' });
 export const ModelRole = z.enum(['build', 'memory']);
@@ -30,20 +30,20 @@ export const listAvailableModels = operation({
     id: 'listAvailableModels', summary: 'List the models the Builder picker offers the current Account.', access: 'session', method: 'GET', path: '/api/control/model-accounts/models',
     ...noParams, query: null, body: null,
     success: { 200: z.object({ models: z.array(OfferedModel), defaultThinkingLevel: ThinkingLevel }) },
-    effects: [], failures: [], malformed: null,
+    effects: [], failures: [...ACCOUNT_REFUSALS], malformed: null,
 });
 export const listModelAccounts = operation({
     id: 'listModelAccounts', summary: 'List the model accounts of the current Account.', access: 'session', method: 'GET', path: '/api/control/model-accounts',
     ...noParams, query: null, body: null,
     success: { 200: z.object({ accounts: z.array(ModelAccountEntry) }) },
-    effects: [], failures: [], malformed: null,
+    effects: [], failures: [...ACCOUNT_REFUSALS], malformed: null,
 });
 export const setModelAccountApiKey = operation({
     id: 'setModelAccountApiKey', summary: 'Store the API key of the current Account for a provider.', access: 'session', method: 'PUT', path: '/api/control/model-accounts/:provider/api-key',
     params: z.object({ provider: ApiKeyProvider }), query: null, headers: null,
     body: z.strictObject({ key: z.string().max(512).trim() }),
     success: { 204: null },
-    effects: [], failures: ['MODEL_ACCOUNT_KEY_REFUSED', 'ACCOUNT_INACTIVE', 'ACCOUNT_NOT_FOUND'],
+    effects: [], failures: ['MODEL_ACCOUNT_KEY_REFUSED', ...ACCOUNT_REFUSALS],
     malformed: { provider: 'MODEL_ACCOUNT_PROVIDER_UNKNOWN' },
 });
 export const startClaudeModelLogin = operation({
@@ -74,7 +74,7 @@ export const getGoogleModelConnection = operation({
     id: 'getGoogleModelConnection', summary: 'Read the Google connection of the current Account.', access: 'session', method: 'GET', path: '/api/control/model-accounts/google-ai-pro/connection',
     ...noParams, query: null, body: null,
     success: { 200: z.object({ own: OwnModelAccount }) },
-    effects: [], failures: ['MODEL_LOGIN_UNAVAILABLE'], malformed: null,
+    effects: [], failures: ['MODEL_LOGIN_UNAVAILABLE', ...ACCOUNT_REFUSALS], malformed: null,
 });
 export const startGoogleModelLogin = operation({
     id: 'startGoogleModelLogin', summary: 'Start the Google sign-in of the current Account.', access: 'session', method: 'POST', path: '/api/control/model-accounts/google-ai-pro/login/start',

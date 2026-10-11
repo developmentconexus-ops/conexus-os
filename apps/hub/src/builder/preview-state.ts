@@ -3,7 +3,6 @@ import { BUILDER_RUN_RESULT_KINDS } from '../generated/builder-run-vocabulary.js
 import { admitProject } from '../identity-access/public.js'
 import type { Admitted, ProjectScope } from '../identity-access/public.js'
 import { sql, type Database } from '../platform/db.js'
-import { Failure } from '../platform/failure.js'
 import type { BuilderRegistry, ServedLaunch } from './application-build.js'
 import { CODE_CHANGING_RESULT_KINDS } from './run-row.js'
 
@@ -98,9 +97,6 @@ export const createPreviewState = ({ database, registry }: Readonly<{ database: 
             AND (base_source_revision = ${sourceRevision} OR result_source_revision = ${sourceRevision})
           LIMIT 1`)
         return run !== null
-      }).catch((error: unknown) => {
-        if (error instanceof Failure && error.id === 'PROJECT_NOT_FOUND') return false
-        throw error
       }),
   }
 }

@@ -165,8 +165,8 @@ test('a source read checks that the account sees the Project before it reads Git
   const projectId = await h.projectIn()
   const read = (accountId, id) => service.listSourceTree({ accountId, projectId: id, sourceRevision: 'c'.repeat(40) }).then(() => 'READ', (error) => [error.id, error.details?.reason ?? null])
   assert.deepEqual(await read(ID.owner, projectId), ['BUILDER_SOURCE_UNAVAILABLE', 'CONEXUS_GIT_FAILED'])
-  assert.deepEqual(await read(ID.outsider, projectId), ['SOURCE_REVISION_NOT_FOUND', null])
-  assert.deepEqual(await read(ID.owner, randomUUID()), ['SOURCE_REVISION_NOT_FOUND', null])
+  assert.deepEqual(await read(ID.outsider, projectId), ['PROJECT_NOT_FOUND', null])
+  assert.deepEqual(await read(ID.owner, randomUUID()), ['PROJECT_NOT_FOUND', null])
 })
 
 test('one pass beats the listed runs and takes the stale ones at one instant', async (t) => {

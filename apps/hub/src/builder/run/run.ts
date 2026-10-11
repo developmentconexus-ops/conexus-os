@@ -10,7 +10,7 @@ import { createRunTiming } from '../run-timing.js'
 import { PROJECT_FILE_READ_LIMIT, PROJECT_INSTRUCTIONS_PATH, PROJECT_MEMORY_PATH, readProjectInstructions, readProjectMemory } from '../project-context.js'
 import type { BuilderRunSummary, BuilderRunView, BuilderStore, InterruptionCode } from '../store.js'
 import type { BuilderRunPhase } from '../../generated/builder-run-vocabulary.js'
-import type { RunActor, StoppedEnding } from '../run-lifecycle.js'
+import { runNotAdmitted, type RunActor, type StoppedEnding } from '../run-lifecycle.js'
 import type { CandidateGate } from '../candidate-gate.js'
 import { Failure, type FailureCode, logFailure, toFailure } from '../../platform/failure.js'
 import { logger } from '../../platform/logger.js'
@@ -46,7 +46,7 @@ class CandidateRefused extends Failure {
 
 type RunStore = Pick<BuilderStore, 'claimBuilderRun' | 'endUnclaimedBuilderRun' | 'setBuilderRunPhase' | 'recordBuilderRunCandidate' | 'bindBuilderRunMessage' | 'bindBuilderRunSandbox' |
   'recordConversationSandbox' | 'recordConversationSession' | 'settleBuilderRun' | 'advanceBuilderRunSource' |
-  'settleBuilderRunBuild' | 'failBuilderRun' | 'interruptBuilderRun' | 'readBuilderRun'>
+  'settleBuilderRunBuild' | 'failBuilderRun' | 'interruptBuilderRun' | 'readLatestRun'>
 
 /** What a run needs of the Hub. */
 export type RunEnvironment = Readonly<{
@@ -141,8 +141,10 @@ const actorOf = (run: Run): RunActor => (run.stage === 'CANDIDATE_RECORDED' || r
 // A phase the database refuses means a stop was asked for; the browser following the run hears every one written.
 // `written` runs once the row holds the phase, before the browser hears of it.
 const setPhase = async (run: Run, phase: BuilderRunPhase, written?: () => void): Promise<void> => {
-  const summary = await run.env.store.setBuilderRunPhase({ builderRunId: run.row.builderRunId, phase, actor: actorOf(run) })
-  if (!summary) throw await phaseRefusal(run)
+  const summary = await run.env.store.setBuilderRunPhase({ builderRunId: run.row.builderRunId, phase, actor: actorOf(run) }).catch(async (error: unknown) => {
+    throw error instanceof Failure && error.id === 'BUILDER_RUN_NOT_ADMITTED' ? await phaseRefusal(run, error) : error
+  })
+  if (!summary) throw await phaseRefusal(run, new Failure('BUILDER_RUN_PHASE_UPDATE_REFUSED'))
   run.trace.phase(phase)
   written?.()
   await run.env.publishRun(viewOf(run, summary))
@@ -151,11 +153,11 @@ const setPhase = async (run: Run, phase: BuilderRunPhase, written?: () => void):
 const pendingCallsOf = (run: Run): readonly string[] => (run.inbox.waiting() ? run.prepared?.session.pendingCalls() ?? [] : [])
 const viewOf = (run: Run, summary: BuilderRunSummary): BuilderRunView => ({ ...summary, pendingCalls: [...pendingCallsOf(run)] })
 
-// The database refuses a phase once a stop is asked for or once the row is no longer running; the row says which.
-const phaseRefusal = async (run: Run): Promise<Failure> => {
-  const persisted = await run.env.store.readBuilderRun({ accountId: run.request.accountId, projectId: run.row.projectId })
+// A phase is refused once the row is no longer running or once a stop is asked for, and the row says which; on a row that still runs, the refusal stands as it came.
+const phaseRefusal = async (run: Run, refusal: Failure): Promise<Failure> => {
+  const persisted = await run.env.store.readLatestRun({ projectId: run.row.projectId })
   if (persisted?.builderRunId !== run.row.builderRunId || persisted.state !== 'RUNNING') return new RowEnded()
-  return new Failure(persisted.cancellationRequested ? 'BUILDER_RUN_CANCELLED' : 'BUILDER_RUN_PHASE_UPDATE_REFUSED')
+  return persisted.cancellationRequested ? new Failure('BUILDER_RUN_CANCELLED') : refusal
 }
 
 // Set once the checkout holds the turn's start; the run's end mirrors it however the run ends.
@@ -179,7 +181,7 @@ const readRunContext = async (run: Run): Promise<(conflicted: readonly string[])
   const readProjectFile = (path: string) => ports.git.readBlob(projectId, baseSourceRevision, path, PROJECT_FILE_READ_LIMIT)
   const instructions = readProjectInstructions(await readProjectFile(PROJECT_INSTRUCTIONS_PATH))
   const memory = readProjectMemory(await readProjectFile(PROJECT_MEMORY_PATH))
-  const projectName = await ports.readProjectName({ accountId: run.request.accountId, projectId })
+  const projectName = await ports.readProjectName({ accountId: run.request.accountId, projectId }).catch(runNotAdmitted)
   const date = turnDate()
   const isNew = await ports.git.isStarter(projectId, baseSourceRevision)
   // The paths the turn's start left with conflict markers, which the agent resolves first (decision 3).
@@ -202,7 +204,7 @@ const prepare = async (run: Run): Promise<Prepared> => {
   const { projectId, conversationId, builderRunId, baseSourceRevision } = run.row
   const conversation = { accountId: run.request.accountId, projectId, conversationId }
   const bindContextFor = await readRunContext(run)
-  const sandbox = await ports.openSandbox(conversation)
+  const sandbox = await ports.openSandbox(conversation).catch(runNotAdmitted)
   const vm = await run.vm.open(sandbox, async (sandboxId) => {
     await store.bindBuilderRunSandbox({ builderRunId, sandboxId })
     await store.recordConversationSandbox({ builderRunId, conversationId, providerSandboxId: sandboxId })
@@ -225,7 +227,7 @@ const prepare = async (run: Run): Promise<Prepared> => {
     ...(runOperation ? { runOperation } : {}),
     gate,
   }
-  const session = await ports.openSession({ projectId, conversationId, builderRunId, bindContext: bindContextFor(turnStart.conflicted) })
+  const session = await ports.openSession({ projectId, conversationId, builderRunId, bindContext: bindContextFor(turnStart.conflicted) }).catch(runNotAdmitted)
   run.timing.mark('session')
   return { gate, gatePhases: gatePhases.settled, session, vm, tools, pulled }
 }
@@ -328,8 +330,8 @@ const work = async (run: Run): Promise<RunOutcome> => {
   await setPhase(run, 'PREPARING')
   // The start model's account is the person's own, else the installation's shared one; none
   // refuses the run before a sandbox exists, with the "connect a model" answer.
-  await env.ports.checkModel({ builderRunId: row.builderRunId, accountId: run.request.accountId, projectId: row.projectId, conversationId: row.conversationId })
-  run.connectorRun = env.ports.openConnectorRun ? await env.ports.openConnectorRun({ projectId: row.projectId, accountId: run.request.accountId, builderRunId: row.builderRunId }) : null
+  await env.ports.checkModel({ builderRunId: row.builderRunId, accountId: run.request.accountId, projectId: row.projectId, conversationId: row.conversationId }).catch(runNotAdmitted)
+  run.connectorRun = env.ports.openConnectorRun ? await env.ports.openConnectorRun({ projectId: row.projectId, accountId: run.request.accountId, builderRunId: row.builderRunId }).catch(runNotAdmitted) : null
   const prepared = await prepare(run)
   run.prepared = prepared
   await converse(run, prepared)
@@ -419,7 +421,7 @@ const exit = async (run: Run, outcome: RunOutcome): Promise<void> => {
   run.env.ports.log('BUILDER_RUN_TIMING', run.timing.fields(run.row))
   await writeEnding(run, final)
   run.trace.end(final.kind === 'STOPPED' ? final.ending.failureCode : final.kind, final.kind === 'STOPPED' && final.ending.state === 'FAILED')
-  const latest = await run.env.store.readBuilderRun({ accountId: run.request.accountId, projectId: run.row.projectId }).catch((error: unknown) => { logged(run, 'BUILDER_RUN_SETTLE_FAILED')(error); return null })
+  const latest = await run.env.store.readLatestRun({ projectId: run.row.projectId }).catch((error: unknown) => { logged(run, 'BUILDER_RUN_SETTLE_FAILED')(error); return null })
   if (latest?.builderRunId === run.row.builderRunId) await run.env.publishRun(viewOf(run, latest))
   await run.prepared?.session.release().catch(logged(run, 'BUILDER_SESSION_RELEASE_FAILED'))
 }

@@ -16,7 +16,7 @@ const { createBuilderController } = await import(built('builder/harness/controll
 const { createBuilderMemory } = await import(built('builder/memory.js'))
 const { registerBuilderSessionRoutes } = await import(built('builder/mastra-session-routes.js'))
 const { createConversations } = await import(built('builder/conversations.js'))
-const { createBuilderModelRouting } = await import(built('builder/model-routing.js'))
+const { conversationModelOf, createBuilderModelRouting } = await import(built('builder/model-routing.js'))
 
 import { bindRunContext, RUN_CONTEXT } from './run-context.mjs'
 
@@ -65,7 +65,7 @@ const probeRouting = (script = [], onObserverPrompt = () => {}, titleDelayMs = 0
       readDefault: async (_accountId, role) => role === 'memory' ? 'anthropic/observer' : 'anthropic/main',
       checkBeforeRun: async () => ({ ok: true, result: undefined }),
     },
-    conversationModel: async () => null,
+    conversationModel: async () => ({ state: 'default' }),
     record: async (builderRunId, _accountId, modelAccountId) => { recorded.push([builderRunId, modelAccountId]) },
   })
   return { routing, calls, titled, recorded, offered }
@@ -187,10 +187,38 @@ test('an Observer call outside a run has no one to pay for it and is refused as 
   assert.deepEqual(recorded, [])
 })
 
+test('a run refuses to start when its conversation chose a model the Hub does not route, whatever the installation default is', async () => {
+  const checked = []
+  const routingFor = (model) => createBuilderModelRouting({
+    data: {}, owner: { ownerId: 'synthetic-memory-owner' },
+    models: {
+      readDefault: async (_accountId, role) => role === 'memory' ? 'anthropic/observer' : 'anthropic/main',
+      checkBeforeRun: async (_accountId, modelIds) => { checked.push(modelIds); return { ok: true, result: undefined } },
+    },
+    conversationModel: async () => conversationModelOf(model), record: async () => {},
+  })
+  const subject = { accountId: ana, projectId: '33333333-3333-4333-8333-333333333333', conversationId: '44444444-4444-4444-8444-444444444444' }
+  await assert.rejects(routingFor({ hasSelection: () => true, get: () => 'no-such-provider/model' }).check(subject), { id: 'BUILDER_MODEL_NOT_SELECTED' })
+  assert.deepEqual(checked, [], 'the installation default is not checked in its place')
+  await routingFor({ hasSelection: () => true, get: () => 'anthropic/claude-sonnet-5' }).check(subject)
+  await routingFor({ hasSelection: () => false, get: () => 'no-such-provider/model' }).check(subject)
+  assert.deepEqual(checked, [['anthropic/claude-sonnet-5', 'anthropic/observer'], ['anthropic/main', 'anthropic/observer']])
+})
+
+test('the memory model of a run whose author was removed is refused as not admitted', async () => {
+  const { Failure } = await import(built('platform/failure.js'))
+  const routing = createBuilderModelRouting({
+    data: {}, owner: { ownerId: 'synthetic-memory-owner' }, models: { readDefault: async () => { throw new Failure('ACCOUNT_INACTIVE') } },
+    conversationModel: async () => ({ state: 'default' }), record: async () => {},
+  })
+  const refused = await routing.resolveMemory(runContext()).then(() => null, (error) => error)
+  assert.deepEqual([refused.id, refused.cause.id], ['BUILDER_RUN_NOT_ADMITTED', 'ACCOUNT_INACTIVE'])
+})
+
 test('a run refuses to start when the installation has no memory default, and no model of the conversation stands in for it', async () => {
   const { routing } = probeRouting()
   const unset = createBuilderModelRouting({
-    data: {}, owner: { ownerId: 'synthetic-memory-owner' }, models: { readDefault: async () => null }, conversationModel: async () => 'anthropic/main', record: async () => {},
+    data: {}, owner: { ownerId: 'synthetic-memory-owner' }, models: { readDefault: async () => null }, conversationModel: async () => ({ state: 'selected', modelId: 'anthropic/main' }), record: async () => {},
   })
   await assert.rejects(unset.check({ accountId: ana, projectId: '33333333-3333-4333-8333-333333333333', conversationId: '44444444-4444-4444-8444-444444444444' }), { id: 'BUILDER_MODEL_NOT_SELECTED' })
   await assert.doesNotReject(routing.check({ accountId: ana, projectId: '33333333-3333-4333-8333-333333333333', conversationId: '44444444-4444-4444-8444-444444444444' }))

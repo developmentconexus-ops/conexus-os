@@ -37,7 +37,7 @@ test('C-020 source inspection admits current subjects and any run with a result'
   assert.equal(await admit(baseline, project, account, baseline), true)
   assert.equal(await admit(unrelated, project, account, null), false)
   assert.equal(await admit('not-an-oid'), false)
-  assert.equal(await admit(working, project, unauthorized), false)
+  await assert.rejects(admit(working, project, unauthorized), { id: 'PROJECT_NOT_FOUND' })
 
   assert.deepEqual(await store.readLatestCodeChangingBuilderRun({ accountId: account, projectId: project }), {
     builderRunId: runTwo, projectId: project, conversationId: project, baseSourceRevision: runOneResult, resultSourceRevision: working, resultKind: 'SOURCE_CHANGED_BUILD_FAILED',
@@ -89,7 +89,7 @@ test('source inspection admits base and result revisions of an in-flight code-ch
   assert.equal(await admit(otherProjectBaseRev), false)
   assert.equal(await admit(otherProjectResultRev), false)
   assert.equal(await store.admitSourceRevision({ accountId: account, projectId: noResultProject, sourceRevision: runningWithoutResultBaseRev, readMain: async () => mainRev }), false)
-  assert.equal(await admit(baseRev, project, unauthorized), false)
+  await assert.rejects(admit(baseRev, project, unauthorized), { id: 'PROJECT_NOT_FOUND' })
 })
 
 test('source inspection admits base and result revisions of an older settled run and an interrupted run with a result', async (t) => {

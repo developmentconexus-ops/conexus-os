@@ -30,7 +30,7 @@ test('a context with some keys, or a value that is no id, is a broken invariant 
 
 test('a model call without its run, or with a malformed one, fails INTERNAL_UNEXPECTED and not BUILDER_MODEL_NOT_SELECTED', async () => {
   const routing = createBuilderModelRouting({
-    models: { modelFor: async () => { throw new Error('must validate the run first') } }, data: {}, owner: { ownerId: 'synthetic' }, conversationModel: async () => null, record: async () => {},
+    models: { modelFor: async () => { throw new Error('must validate the run first') } }, data: {}, owner: { ownerId: 'synthetic' }, conversationModel: async () => ({ state: 'default' }), record: async () => {},
   })
   const malformed = new RequestContext()
   bindRunContext(malformed, RUN_CONTEXT)

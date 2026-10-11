@@ -96,7 +96,7 @@ export declare const listProjects: {
         }, z.core.$strip>], "state">>;
     };
     readonly effects: readonly [];
-    readonly failures: readonly [];
+    readonly failures: readonly ["ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
     readonly malformed: {
         readonly workspaceId: "WORKSPACE_NOT_FOUND";
     };
@@ -129,7 +129,7 @@ export declare const getProject: {
         }, z.core.$strip>], "state">;
     };
     readonly effects: readonly [];
-    readonly failures: readonly [];
+    readonly failures: readonly ["ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
     readonly malformed: {
         readonly projectId: "PROJECT_NOT_FOUND";
     };
@@ -189,7 +189,7 @@ export declare const deleteProject: {
         readonly 204: null;
     };
     readonly effects: readonly [];
-    readonly failures: readonly ["PROJECT_DELETE_DENIED", "PROJECT_NAME_MISMATCH", "PROJECT_BUSY", "PROJECT_DELETION_INCOMPLETE"];
+    readonly failures: readonly ["PROJECT_DELETE_DENIED", "PROJECT_NAME_MISMATCH", "PROJECT_BUSY", "PROJECT_DELETION_INCOMPLETE", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
     readonly malformed: {
         readonly projectId: "PROJECT_NOT_FOUND";
     };
@@ -237,7 +237,7 @@ export declare const listProjectSummaries: {
         }, z.core.$strip>;
     };
     readonly effects: readonly [];
-    readonly failures: readonly [];
+    readonly failures: readonly ["ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
     readonly malformed: {
         readonly workspaceId: "WORKSPACE_NOT_FOUND";
     };
@@ -262,7 +262,7 @@ export declare const getProjectThumbnail: {
         };
     };
     readonly effects: readonly [];
-    readonly failures: readonly ["PROJECT_THUMBNAIL_NOT_FOUND"];
+    readonly failures: readonly ["PROJECT_THUMBNAIL_NOT_FOUND", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
     readonly malformed: {
         readonly projectId: "PROJECT_NOT_FOUND";
     };

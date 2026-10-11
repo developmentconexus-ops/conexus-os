@@ -2,6 +2,8 @@ import type { z } from 'zod'
 import type { FailureCode } from './failures.generated.js'
 
 export const SUBJECT_NOT_FOUND = { workspaceId: 'WORKSPACE_NOT_FOUND', projectId: 'PROJECT_NOT_FOUND' } as const
+/** What every person admission answers before it looks at its subject: the Account is gone or was deactivated. */
+export const ACCOUNT_REFUSALS = ['ACCOUNT_INACTIVE', 'ACCOUNT_NOT_FOUND'] as const
 
 export type AccessKind = 'navigation' | 'sign-in' | 'session' | 'sign-out' | 'host-write' | 'hub-entry'
 export type Effect = 'clear-session-cookie'

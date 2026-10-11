@@ -77,6 +77,36 @@ test('0072 normalizes a stored retired Project creation refusal and its run summ
   assert.equal(RunRow.parse(row).failureCode, 'INTERNAL_UNEXPECTED')
 })
 
+test('0072 refuses, by name, an open deletion whose Project is already gone, and leaves the database as it was', async (t) => {
+  const { connectionString } = await createEmptyDatabase(t, 'conexus_deletion_stranded')
+  await runMigrations({ connectionString, migrations: corpus.filter(({ version }) => version <= '0071'), catalogSnapshot: null })
+  await query(connectionString, `
+    INSERT INTO iam.account(account_id, issuer, external_subject, display_name, email)
+      VALUES ('a0000000-0000-4000-8000-000000000001', 'https://kc.test', 'sub-owner', 'Owner', 'owner@example.test');
+    INSERT INTO workspace.workspace(workspace_id, name)
+      VALUES ('b0000000-0000-4000-8000-000000000001', 'Workspace');
+    INSERT INTO project.project(project_id, workspace_id, name, source_mode, source_revision, project_revision)
+      VALUES ('c0000000-0000-4000-8000-000000000003', 'b0000000-0000-4000-8000-000000000001', 'Still here', 'NEW', repeat('a', 40), 'revision');
+    INSERT INTO project.project_deletion(project_id, workspace_id, name, requested_by, purged_at, completed_at) VALUES
+      ('c0000000-0000-4000-8000-000000000001', 'b0000000-0000-4000-8000-000000000001', 'Stranded', 'a0000000-0000-4000-8000-000000000001', NULL, NULL),
+      ('c0000000-0000-4000-8000-000000000002', 'b0000000-0000-4000-8000-000000000001', 'Completed', 'a0000000-0000-4000-8000-000000000001', clock_timestamp() + interval '1 minute', clock_timestamp() + interval '1 minute'),
+      ('c0000000-0000-4000-8000-000000000003', 'b0000000-0000-4000-8000-000000000001', 'Still here', 'a0000000-0000-4000-8000-000000000001', NULL, NULL);
+  `)
+  const upgrade = () => runMigrations({ connectionString, migrations: corpus, catalogSnapshot: null }).then((result) => result.verdict, (error) => error.message)
+  const ledger = async () => (await query(connectionString, 'SELECT max(version) AS version FROM iam.schema_migration')).rows[0].version
+
+  assert.equal(await upgrade(), 'PROJECT_DELETION_STRANDED: c0000000-0000-4000-8000-000000000001')
+  assert.equal(await ledger(), '0071')
+  assert.deepEqual((await query(connectionString, 'SELECT project_id, completed_at IS NOT NULL AS completed FROM project.project_deletion ORDER BY project_id')).rows, [
+    { project_id: 'c0000000-0000-4000-8000-000000000001', completed: false },
+    { project_id: 'c0000000-0000-4000-8000-000000000002', completed: true },
+    { project_id: 'c0000000-0000-4000-8000-000000000003', completed: false },
+  ])
+  // A completed deletion and an open one whose Project is present are lawful: with the stranded row out of the way they stop nothing.
+  await query(connectionString, "DELETE FROM project.project_deletion WHERE project_id = 'c0000000-0000-4000-8000-000000000001'")
+  assert.equal(await upgrade(), 'PASS')
+})
+
 test('0073 normalizes the three stored retired failure codes to INTERNAL_UNEXPECTED and leaves every other code alone', async (t) => {
   const { connectionString } = await createEmptyDatabase(t, 'conexus_retired_failure_codes')
   await runMigrations({ connectionString, migrations: corpus.filter(({ version }) => version <= '0072'), catalogSnapshot: null })

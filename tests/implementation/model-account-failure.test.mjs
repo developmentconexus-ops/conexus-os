@@ -17,7 +17,7 @@ for (const code of ['DATABASE_BUSY', 'CONFIG_INVALID']) test(`Builder model admi
   const routing = createBuilderModelRouting({
     data: { transaction: async () => { throw original } }, owner: {},
     models: { modelFor: (openRun) => openRun(async () => { throw new Error('must not run') }) },
-    conversationModel: async () => null, record: async () => { throw new Error('must not record') },
+    conversationModel: async () => ({ state: 'default' }), record: async () => { throw new Error('must not record') },
   })
   await assert.rejects(routing.resolve({ requestContext }), (actual) => {
     assert.equal(actual, original)

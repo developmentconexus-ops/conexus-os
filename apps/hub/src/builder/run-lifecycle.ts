@@ -4,7 +4,7 @@ import { canonicalBytes, sha256 } from '../../../../packages/canonical-json/src/
 import { AccountId, BuilderRunId, ProjectId, SourceRevision, type ConversationId, type ModelAccountId } from '@conexus/contract'
 import { admitProject, admitRun, admitSystem, type Admitted, type ProjectScope, type RunOwner, type RunScope, type SystemScope } from '../identity-access/public.js'
 import { BUILDER_RUN_STATES, isOpenRunState, OPEN_RUN_STATES, type OpenRunState, type BuilderRunPhase, } from '../generated/builder-run-vocabulary.js'
-import { sql, type Database, type WriteTx } from '../platform/db.js'
+import { sql, type CommandGate, type Database, type WriteTx } from '../platform/db.js'
 import { Failure, type FailureCode } from '../platform/failure.js'
 import type { BuilderRegistry } from './application-build.js'
 import type { SealedApplication } from '../registry/public.js'
@@ -13,11 +13,21 @@ import { RUN_COLUMNS, RunRow, type BuilderRunSummary } from './run-row.js'
 /** Who a run's write acts as: its author's account before the candidate, the executor for everything it settles. */
 export type RunActor = Readonly<{ via: 'account'; accountId: AccountId }> | Readonly<{ via: 'executor' }>
 
+const ADMISSION_REFUSALS: ReadonlySet<FailureCode> = new Set(['BUILDER_RUN_NOT_ADMITTED', 'PROJECT_NOT_FOUND', 'PROJECT_DELETING', 'ACCOUNT_INACTIVE', 'ACCOUNT_NOT_FOUND'])
+
+// A run whose author lost the Project or the account is a run that is no longer admitted: the
+// subject's own code would be stored as the run's failure and shown to the members who remain.
+export function runNotAdmitted(error: unknown): never {
+  throw error instanceof Failure && ADMISSION_REFUSALS.has(error.id) ? new Failure('BUILDER_RUN_NOT_ADMITTED', { cause: error }) : error
+}
+
 /** Opens the entry the actor names and admits the run in it, so the work gets the run's proof and nothing else. */
-export const withRun = <T>(database: Database, ownerId: string, builderRunId: BuilderRunId, actor: RunActor, work: (proof: Admitted<RunScope>) => Promise<T>): Promise<T> =>
-  actor.via === 'account'
-    ? database.transaction(actor.accountId, async (gate) => work(await admitRun(gate, builderRunId, { ownerId })))
-    : database.system('builder-executor', async (gate) => work(await admitRun(gate, builderRunId, { ownerId })))
+export const withRun = <T>(database: Database, ownerId: string, builderRunId: BuilderRunId, actor: RunActor, work: (proof: Admitted<RunScope>) => Promise<T>): Promise<T> => {
+  const admitted = (gate: CommandGate): Promise<Admitted<RunScope>> => admitRun(gate, builderRunId, { ownerId }).catch(runNotAdmitted)
+  return actor.via === 'account'
+    ? database.transaction(actor.accountId, async (gate) => work(await admitted(gate)))
+    : database.system('builder-executor', async (gate) => work(await admitted(gate)))
+}
 
 /** How a run stops holding its Project: the person's stop, a Hub that stopped, or a question nobody answered. */
 export type InterruptionCode = Extract<FailureCode, 'USER_CANCELLED' | 'HUB_RESTART' | 'BUILDER_QUESTION_EXPIRED'>
@@ -108,7 +118,7 @@ export const createRunStart = ({ database, mintIdentity }: Readonly<{ database: 
   bindBuilderRunMessage: ({ builderRunId, projectId, accountId, messageId }) => database.transaction(accountId, async (gate) => {
     const id = messageId.trim()
     if (!MESSAGE_ID.test(id)) throw transitionRefused('message bind')
-    const { tx, scope } = await admitProject(gate, { projectId, action: 'project.build' })
+    const { tx, scope } = await admitProject(gate, { projectId, action: 'project.build' }).catch(runNotAdmitted)
     await tx.maybe(Present, sql`SELECT 1 AS present FROM builder.builder_run AS run WHERE run.builder_run_id = ${builderRunId} AND run.project_id = ${scope.projectId} FOR UPDATE`)
     const bound = await tx.run(sql`
       UPDATE builder.builder_run SET trigger_message_id = ${id}
@@ -129,7 +139,7 @@ export type RunSteps = Readonly<{
   claimBuilderRun(input: Readonly<{ builderRunId: BuilderRunId }>): Promise<BuilderRunSummary>
   /** Ends a run that was never claimed: only a row still queued and unowned, so a claim or a cancellation that won is left alone. */
   endUnclaimedBuilderRun(input: Readonly<{ builderRunId: BuilderRunId; projectId: ProjectId; ending: StoppedEnding }>): Promise<void>
-  /** Answers the run as written, or null when a stop was requested first. */
+  /** Answers the run as written, or null when the row refused the phase: a stop was requested first, or it is no longer running. */
   setBuilderRunPhase(input: Readonly<{ builderRunId: BuilderRunId; phase: BuilderRunPhase; actor: RunActor }>): Promise<BuilderRunSummary | null>
   /** Enters SOURCE_ADMISSION with the candidate about to be fast forwarded onto `main`; refused once a stop is requested. */
   recordBuilderRunCandidate(input: Readonly<{ builderRunId: BuilderRunId; accountId: AccountId; sourceRevision: SourceRevision }>): Promise<void>
@@ -151,8 +161,6 @@ type Transition = 'candidate' | 'sandbox bind' | 'model account record' | 'settl
 const transitionRefused = (transition: Transition): Failure => new Failure('BUILDER_RUN_TRANSITION_REFUSED', { details: { transition } })
 
 const SANDBOX_ID = /^.{1,200}$/s
-const ADMISSION_REFUSALS: ReadonlySet<string> = new Set(['BUILDER_RUN_NOT_ADMITTED', 'PROJECT_NOT_FOUND', 'PROJECT_DELETING', 'ACCOUNT_INACTIVE', 'ACCOUNT_NOT_FOUND'])
-
 const lockWorking = async (tx: WriteTx, projectId: ProjectId, transition: Transition): Promise<void> => {
   if (!await tx.maybe(Present, sql`SELECT 1 AS present FROM builder.project_working_state WHERE project_id = ${projectId} FOR UPDATE`)) throw transitionRefused(transition)
 }
@@ -193,7 +201,7 @@ export const createRunSteps = ({ database, ownerId, registry }: Readonly<{ datab
         UPDATE builder.builder_run AS run SET state = 'RUNNING', phase = 'PREPARING', started_at = clock_timestamp(), owner_id = ${ownerId}, heartbeat_at = clock_timestamp()
         WHERE run.builder_run_id = ${builderRunId} AND run.project_id = ${project.scope.projectId} AND run.state = 'QUEUED'
         RETURNING ${RUN_COLUMNS}`)
-    }).catch((error: unknown) => { throw error instanceof Failure && ADMISSION_REFUSALS.has(error.id) ? new Failure('BUILDER_RUN_NOT_ADMITTED', { cause: error }) : error })
+    }).catch(runNotAdmitted)
     if (!run) throw new Failure('BUILDER_RUN_NOT_ADMITTED')
     return run
   }
@@ -208,9 +216,6 @@ export const createRunSteps = ({ database, ownerId, registry }: Readonly<{ datab
         WHERE run.builder_run_id = ${proof.scope.builderRunId} AND run.project_id = ${proof.scope.projectId} AND run.state = 'RUNNING' AND run.cancellation_requested_at IS NULL
         RETURNING ${RUN_COLUMNS}`)
       return row
-    }).catch((error: unknown) => {
-      if (error instanceof Failure && error.id === 'BUILDER_RUN_NOT_ADMITTED') return null
-      throw error
     }),
     recordBuilderRunCandidate: async ({ builderRunId, accountId, sourceRevision }) => {
       await withRun(database, ownerId, builderRunId, { via: 'account', accountId }, (proof) => written(proof, sql`

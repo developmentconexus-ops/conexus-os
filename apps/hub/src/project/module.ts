@@ -9,8 +9,8 @@ import type { ProjectDeletionPorts } from './deletion.js'
 
 export type ProjectModule = Readonly<{
   registerProjectRoutes(app: FastifyInstance): ReturnType<typeof registerProjectRoutes>
-  /** The display name of a Project the account may see, or null when it may not. */
-  readProjectName(input: Readonly<{ accountId: AccountId; projectId: ProjectId }>): Promise<string | null>
+  /** The display name of a Project the account may see. */
+  readProjectName(input: Readonly<{ accountId: AccountId; projectId: ProjectId }>): Promise<string>
 }>
 
 export const createConfiguredProjectModule = ({
@@ -29,6 +29,6 @@ export const createConfiguredProjectModule = ({
   const store = createProjectStore({ database, repository, deletion, builder })
   return Object.freeze({
     registerProjectRoutes: (app: FastifyInstance) => registerProjectRoutes(app, { store, thumbnailReader }),
-    readProjectName: async (input) => (await store.getProject(input))?.name ?? null,
+    readProjectName: async (input) => (await store.getProject(input)).name,
   })
 }

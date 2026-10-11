@@ -34,7 +34,7 @@ type CreateProjectResult = Readonly<{ replayed: boolean; reply: ProjectCreated }
 export type ProjectStore = Readonly<{
   createProject(input: CreateProjectInput): Promise<CreateProjectResult>
   listProjects(input: Readonly<{ accountId: AccountId; workspaceId: WorkspaceId }>): Promise<ProjectListRow[]>
-  getProject(input: Readonly<{ accountId: AccountId; projectId: ProjectId }>): Promise<ProjectDetail | null>
+  getProject(input: Readonly<{ accountId: AccountId; projectId: ProjectId }>): Promise<ProjectDetail>
   listProjectSummariesWithActivity(input: Readonly<{ accountId: AccountId; workspaceId: WorkspaceId }>): Promise<ProjectCard[]>
   deleteProject(input: Readonly<{ accountId: AccountId; projectId: ProjectId; confirmName: string }>): Promise<void>
 }>
@@ -95,9 +95,9 @@ export const createProjectStore = ({
           ON deletion.project_id = stored.project_id AND deletion.completed_at IS NULL
         WHERE stored.workspace_id = ${proof.scope.workspaceId} ORDER BY stored.name, stored.project_id`)]
     }),
-    getProject: ({ accountId, projectId }) => database.read(accountId, async (gate): Promise<ProjectDetail | null> => {
+    getProject: ({ accountId, projectId }) => database.read(accountId, async (gate): Promise<ProjectDetail> => {
       const proof = await admitProject(gate, { projectId, action: 'project.read' })
-      const live = await proof.tx.maybe(DetailRow, sql`
+      return proof.tx.one(DetailRow, sql`
         SELECT stored.project_id, stored.workspace_id, stored.name,
           CASE WHEN deletion.project_id IS NULL THEN 'live' ELSE 'deleting' END AS state,
           CASE WHEN deletion.project_id IS NULL THEN stored.project_revision END AS project_revision,
@@ -105,8 +105,7 @@ export const createProjectStore = ({
         FROM project.project AS stored
         LEFT JOIN project.project_deletion AS deletion
           ON deletion.project_id = stored.project_id AND deletion.completed_at IS NULL
-        WHERE stored.project_id = ${proof.scope.projectId}`)
-      return live
+        WHERE stored.project_id = ${proof.scope.projectId}`, 'INTERNAL_UNEXPECTED')
     }),
     listProjectSummariesWithActivity: ({ accountId, workspaceId }) => database.read(accountId, async (gate) => {
       const proof = await admitWorkspace(gate, { workspaceId, action: 'workspace.read' })

@@ -36,16 +36,22 @@ export function clearProjectCache(projectId: string) {
   void queryClient.invalidateQueries({ queryKey: ['listProjectSummaries'] })
 }
 
+const isProjectDetail = (projectId: string) => ({ queryKey }: Readonly<{ queryKey: readonly unknown[] }>): boolean => {
+  const input = queryKey[1]
+  return queryKey[0] === 'getProject'
+    && typeof input === 'object' && input !== null && 'params' in input
+    && typeof input.params === 'object' && input.params !== null && 'projectId' in input.params
+    && input.params.projectId === projectId
+}
+
 export function refreshProjectCache(projectId: string) {
-  void queryClient.invalidateQueries({
-    predicate: ({ queryKey }) => {
-      const input = queryKey[1]
-      return queryKey[0] === 'getProject'
-        && typeof input === 'object' && input !== null && 'params' in input
-        && typeof input.params === 'object' && input.params !== null && 'projectId' in input.params
-        && input.params.projectId === projectId
-    },
-  })
+  void queryClient.invalidateQueries({ predicate: isProjectDetail(projectId) })
+}
+
+/** A Project that was deleted: nothing read about it is shown again, not even while its next read is in flight. */
+export function forgetProject(projectId: string) {
+  clearProjectCache(projectId)
+  queryClient.removeQueries({ predicate: isProjectDetail(projectId) })
 }
 
 export function confirmAuthority() {
