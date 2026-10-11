@@ -58,9 +58,9 @@ naming the wrong reason when Keycloak reports an unverified email. S1 part 6 fix
 ## Work in progress
 
 Four specs are built on the integrated wave branch and travel into `main` as one wave pull request,
-which stays a draft until the proof and the review pass on the same head
-([wave flow](development/delivery.md#waves)). The independent proof of the integrated head passed. The whole-wave
-review asked for changes, and fix batches answer it:
+which stays a draft until the wave is proved
+([wave flow](development/delivery.md#waves)). The whole-wave review asked for changes, and fix
+batches answer it:
 
 - **Hub authorization model, spec 0018**, [#543](https://github.com/developmentconexus-ops/conexus-os/issues/543),
   `lane:qualification`. Built. This closes S1. One check family, copied and adapted from Documenso, is
