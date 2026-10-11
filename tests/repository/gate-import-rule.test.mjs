@@ -64,6 +64,10 @@ test('openReadGate is importable by admission.ts only', () => {
   assert.ok(lint('apps/hub/src/workspace/read-gate-import-probe.ts', text).includes(READ))
   assert.ok(lint('apps/hub/src/identity-access/sessions-read-gate-probe.ts', text).includes(READ))
   assert.ok(lint('apps/hub/src/identity-access/authentication.ts', text).includes(READ))
+  // The runner's worker and supervisor and the packages are outside the block that also refuses pg.
+  assert.ok(lint('apps/hub/src/app-runner/worker.ts', text).includes(READ))
+  assert.ok(lint('apps/hub/src/app-runner/supervisor.ts', text).includes(READ))
+  assert.ok(lint('packages/contract/src/read-gate-import-probe.ts', "import { openReadGate } from '../../../apps/hub/src/platform/db.js'\n\nexport const opened = openReadGate\n").includes(READ))
   assert.ok(!lint('apps/hub/src/identity-access/admission.ts', text).includes(READ))
   assert.ok(!lintReal('apps/hub/src/identity-access/admission.ts').includes(READ))
 })
