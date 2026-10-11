@@ -43,6 +43,28 @@ for (const { name, source, lines } of astCases) {
   })
 }
 
+const declarationCases = [
+  ['a function declaration of a body helper', 'export function sendFailure() {}\nfunction problemBody() {}\nfunction sendInternal() {}\nfunction failureProblem() {}\nfunction causeText() {}', 'failureBodyHelpers', [1, 2, 3, 4, 5]],
+  ['a const of causeText', 'const causeText = () => 1', 'failureBodyHelpers', [1]],
+  ['a function declaration of the worker code filter', 'function workerCodeOf() {}', 'workerCodeFilter', [1]],
+  ['a function declaration of the admission decoder', 'function admissionFailure() {}', 'admissionMessageDecoders', [1]],
+  ['a class declaration of HubFailure', 'export class HubFailure extends Error {}', 'hubFailureClass', [1]],
+  ['a class expression of HubFailure', 'export const HubFailure = class {}', 'hubFailureClass', [1]],
+  ['an aliased import of a body helper', "import { sendFailure as send } from './x.js'", 'failureBodyHelpers', [1]],
+  ['an aliased import of HubFailure', "import { HubFailure as Failure } from './x.js'", 'hubFailureClass', [1]],
+  ['a throwing manifest helper written as an arrow', 'const refuseManifest = () => { throw new Error() }', 'manifestThrowHelpers', [1]],
+  ['the embedded class under any name', "export const APP_FAILURE_CLIENT_SOURCE = 'export class ConexusError extends Error {}'", 'embeddedConexusError', [1]],
+  ['the embedded class in a template literal', 'export const generated = `export class ConexusError extends Error {}`', 'embeddedConexusError', [1]],
+]
+
+for (const [label, source, name, lines] of declarationCases) {
+  test(`${label} is a legacy mechanism, and an unrelated declaration is not`, () => {
+    const path = resolve(root, 'tests/fixtures/error-model-census/declaration.ts')
+    assert.deepEqual(censusSource(path, source)[name], lines.map((line) => `tests/fixtures/error-model-census/declaration.ts:${line}`))
+    assert.deepEqual(censusSource(path, 'function unrelated() {}\nclass Unrelated {}\nimport { other as renamed } from "./y.js"\nconst text = "export class Other"')[name], [])
+  })
+}
+
 const markerCases = [
   {
     name: 'generatedFailureDecoder',
