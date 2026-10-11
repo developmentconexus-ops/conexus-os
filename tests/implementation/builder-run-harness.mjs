@@ -76,7 +76,7 @@ export const failedReport = (step, problems) => {
 // runtime names under /workspace, /var/lib or /opt lands under the harness's
 // own `vm` directory, and the agent user's `kill -KILL -1` is recorded, never run. It is the
 // conversation's one VM: every turn reaches the same directory until `loseVm` replaces it.
-export const harness = async (t, { turn, build, report, onCheck, repairs = [], skipGate = false, starter, agentUser = 'conexus-agent', onStart, onCommand, lostAdvances = 0, close, applicationServer, openConnectorRun, openError, onHoldOpen, corruptSeed = false, beforeFastForward, afterFastForward, beforeAcceptSnapshot, modelAccount = MODEL_ACCOUNT, starterFiles = STARTER, mirrorDebounceMs = 0, questionWaitMs = 60_000, answers = [], session, onWaitingWrite, persisted, openSandbox, claim, candidateRefusal, admit, authorRead, noteFails = false } = {}) => {
+export const harness = async (t, { turn, build, report, onCheck, repairs = [], skipGate = false, starter, agentUser = 'conexus-agent', onStart, onCommand, lostAdvances = 0, close, applicationServer, openConnectorRun, openError, onHoldOpen, corruptSeed = false, beforeFastForward, afterFastForward, beforeAcceptSnapshot, modelAccount = MODEL_ACCOUNT, starterFiles = STARTER, mirrorDebounceMs = 0, questionWaitMs = 60_000, answers = [], session, onWaitingWrite, persisted, openSandbox, claim, candidateRefusal, admit, authorRead, readProjectName, phaseRefusal, noteFails = false } = {}) => {
   endLines.splice(0)
   const scratch = mkdtempSync(join(tmpdir(), 'conexus-runtime-'))
   t.after(() => rmSync(scratch, { recursive: true, force: true }))
@@ -272,7 +272,7 @@ export const harness = async (t, { turn, build, report, onCheck, repairs = [], s
     mirrorDebounceMs,
     materializeStarter: async () => { events.push('starter'); await starter?.() },
     ...(openConnectorRun ? { openConnectorRun } : {}),
-    readProjectName: async () => 'Compras',
+    readProjectName: readProjectName ?? (async () => 'Compras'),
     log: (code, fields = {}) => { if (code === 'BUILDER_RUN_TIMING') timings.push(fields)
       else (code.startsWith('BUILDER_SANDBOX_EGRESS') ? egressLogs : logs).push([code, ...Object.values(fields)].join(':')) },
   }
@@ -291,6 +291,8 @@ export const harness = async (t, { turn, build, report, onCheck, repairs = [], s
     claimBuilderRun: async () => { await claim?.(); return claimed },
     setBuilderRunPhase: async ({ phase }) => {
       calls.push(['phase', phase])
+      const refusal = phaseRefusal?.(phase)
+      if (refusal) throw refusal
       if (phase === 'WAITING' && onWaitingWrite && await onWaitingWrite(context.service) === 'REFUSE') return null
       // The person acts once the browser shows the question.
       const reply = phase === 'WAITING' ? answers.shift() : undefined

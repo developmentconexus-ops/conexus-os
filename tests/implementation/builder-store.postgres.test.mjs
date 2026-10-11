@@ -220,7 +220,13 @@ test('revoking the author refuses new work but the held owner can close the run 
   const before = await row(builderRunId)
   const refused = await store.recordBuilderRunCandidate({ builderRunId, accountId: ID.member, sourceRevision: CANDIDATE }).then(() => null, (error) => error)
   assert.deepEqual([refused.id, refused.cause.id], ['BUILDER_RUN_NOT_ADMITTED', 'PROJECT_NOT_FOUND'])
-  assert.equal(await store.setBuilderRunPhase({ builderRunId, phase: 'AGENT', actor: { via: 'account', accountId: ID.member } }), null)
+  for (const newWork of [
+    () => store.setBuilderRunPhase({ builderRunId, phase: 'AGENT', actor: { via: 'account', accountId: ID.member } }),
+    () => store.bindBuilderRunMessage({ builderRunId, projectId, accountId: ID.member, messageId: 'message-1' }),
+  ]) {
+    const error = await newWork().then(() => null, (thrown) => thrown)
+    assert.deepEqual([error.id, error.cause.id], ['BUILDER_RUN_NOT_ADMITTED', 'PROJECT_NOT_FOUND'])
+  }
   assert.equal((await store.readLatestRun({ projectId })).builderRunId, builderRunId)
   assert.deepEqual(await row(builderRunId), before)
   await assert.rejects(store.settleBuilderRun({ builderRunId }), { id: 'BUILDER_RUN_NOT_ADMITTED' })

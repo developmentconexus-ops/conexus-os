@@ -7,6 +7,7 @@ import { Failure } from '../platform/failure.js'
 import { parseModelId, type ModelAccountModule, type OpenRun } from '../model-account/module.js'
 import { readSessionModelId, readSessionThinkingLevel } from './harness/request-context.js'
 import { requireRunContext } from './run-context.js'
+import { runNotAdmitted } from './run-lifecycle.js'
 
 /** What a conversation chose for itself: nothing, a model the Hub routes, or a choice that names none. */
 export type ConversationModel = Readonly<{ state: 'default' }> | Readonly<{ state: 'selected'; modelId: ModelId }> | Readonly<{ state: 'unusable' }>
@@ -18,7 +19,7 @@ export function conversationModelOf(model: Readonly<{ hasSelection(): boolean; g
 }
 
 function openRunFor({ data, owner, run }: Readonly<{ data: Database; owner: RunOwner; run: ReturnType<typeof requireRunContext> }>): OpenRun {
-  return (work) => data.transaction(run.accountId, async (gate) => work(await admitRun(gate, run.builderRunId, owner)))
+  return (work) => data.transaction(run.accountId, async (gate) => work(await admitRun(gate, run.builderRunId, owner).catch(runNotAdmitted)))
 }
 
 export function createBuilderModelRouting({ models, data, owner, conversationModel, record }: Readonly<{

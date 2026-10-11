@@ -244,6 +244,19 @@ test('native Claude refresh is shared by real runs, commits before Messages and 
   assert.equal(requests.length, 1)
 })
 
+test('a model call of a run whose author was removed is refused as not admitted, not with the author\'s own refusal', async (t) => {
+  const f = await setupModelAccounts(t, 'conexus_model_removed_author')
+  await f.connect({ provider: 'anthropic', kind: 'api_key', value: AnthropicKey.parse(key) })
+  const projectId = await f.seedBuilderProject()
+  const runId = await f.seedRun(projectId)
+  const routing = createBuilderModelRouting({ models: f.models, data: f.database, owner: { ownerId: OWNER }, conversationModel: async () => ({ state: 'default' }), record: async () => {} })
+  const carried = context(runId, projectId, 'anthropic/claude-sonnet-5')
+  await routing.resolve({ requestContext: carried })
+  await query(f.connection, 'DELETE FROM iam.workspace_membership WHERE account_id = $1', [ID.owner])
+  const refused = await routing.resolve({ requestContext: carried }).then(() => null, (error) => error)
+  assert.deepEqual([refused.id, refused.cause.id], ['BUILDER_RUN_NOT_ADMITTED', 'PROJECT_NOT_FOUND'])
+})
+
 test('actual personal selection refuses absent and unsupported providers, retains defaults and records both model accounts', async (t) => {
   const f = await setupModelAccounts(t, 'conexus_model_selection')
   const anthropic = await f.connect({ provider: 'anthropic', kind: 'api_key', value: AnthropicKey.parse(key) })

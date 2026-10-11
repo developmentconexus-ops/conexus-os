@@ -1457,6 +1457,30 @@ test('an author who lost the Project before the candidate ends the run as not ad
   assert.equal(await run.main(), run.base)
 })
 
+const NOT_ADMITTED = () => new Failure('BUILDER_RUN_NOT_ADMITTED', { cause: new Failure('PROJECT_NOT_FOUND') })
+for (const [window, options] of [
+  ['while the run was being prepared', { readProjectName: async () => { throw new Failure('PROJECT_NOT_FOUND') } }],
+  ['before a phase was written', { phaseRefusal: (phase) => phase === 'AGENT' ? NOT_ADMITTED() : null }],
+]) {
+  test(`an author removed ${window} ends the run as not admitted`, async (t) => {
+    const run = await harness(t, options)
+    await run.start()
+    await run.service.close()
+    assert.deepEqual(run.calls.filter(([kind]) => kind === 'candidate' || kind === 'fail' || kind === 'interrupt'), [['fail', 'BUILDER_RUN_NOT_ADMITTED']])
+    assert.equal(await run.main(), run.base)
+  })
+}
+
+test('a phase refused as not admitted on a row that already ended elsewhere writes no ending of its own', async (t) => {
+  const run = await harness(t, {
+    phaseRefusal: (phase) => phase === 'AGENT' ? NOT_ADMITTED() : null,
+    persisted: (claimed) => ({ ...claimed, state: 'INTERRUPTED', failureCode: 'HUB_RESTART' }),
+  })
+  await run.start()
+  await run.service.close()
+  assert.deepEqual(run.calls.filter(([kind]) => kind === 'interrupt' || kind === 'fail'), [])
+})
+
 test('a Hub that stops while the claim fails ends the unclaimed row at once, as interrupted, with no lease pass', async (t) => {
   let run
   run = await harness(t, { claim: async () => { await new Promise((wake) => { setTimeout(wake, 0) }); run.service.stopRuns(); throw new Error('claim down') } })
