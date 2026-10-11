@@ -225,7 +225,7 @@ allowlist; it was deleted with the shape, and no file in the repository holds th
 ### U1. Pin real personal behavior before movement
 
 - **Already there**: Actual main `5efbc090`; existing builder-anthropic, builder-openai-codex, builder-google-ai-pro, builder-thinking-level, model-account-routes, builder-session-routes, model-account.postgres, iam-sessions.postgres and connector-broker.postgres suites in tests/implementation. Schema-specific company-model-accounts-migration.postgres suite runs only after schema integration.
-- **Creates**: Missing behavioral characterization in those same suites, plus model-accounts-fake.mjs and builder-google-ai-pro-fake-cliproxy.mjs when needed. Pin literal requests, native streamed answer, exact payer ids, memory/thinking and current login/refresh/close behavior. List reused cases and gaps in proof receipt.
+- **Creates**: Missing behavioral characterization in those same suites, plus model-accounts-fake.mjs (deleted since; no fake of the model accounts remains under tests/implementation) and builder-google-ai-pro-fake-cliproxy.mjs when needed. Pin literal requests, native streamed answer, exact payer ids, memory/thinking and current login/refresh/close behavior. List reused cases and gaps in proof receipt.
 - **Satisfies**: AC-2; AC-3/5/6 regression baseline.
 - **Files**: Those named test/fixture paths only; U1 manifest has zero product paths. No shape/product edits.
 - **Copies**: Current native test boundary, not its structural seam.

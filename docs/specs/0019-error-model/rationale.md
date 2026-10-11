@@ -121,7 +121,7 @@ apps/hub/src/builder/check/steps/server-bundle.ts
 apps/hub/src/builder/conversation-sandboxes.ts
 apps/hub/src/builder/mastra-session-routes.ts
 apps/hub/src/builder/run-operation.ts
-apps/hub/src/generated/app-failures.ts
+apps/hub/src/generated/app-failures.ts (deleted since; packages/contract/src/failures.generated.ts holds the app failure source)
 apps/hub/src/hosting/application-host-routes.ts
 apps/hub/src/hosting/application-invoker.ts
 apps/hub/src/hosting/preview-routes.ts
