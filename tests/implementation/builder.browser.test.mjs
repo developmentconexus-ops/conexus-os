@@ -2174,17 +2174,23 @@ function problem(code) {
   const { status } = FAILURES[code]
   return { status, contentType: 'application/problem+json', body: JSON.stringify({ type: `urn:conexus:problem:${code}`, title: code, status, code }) }
 }
-const stubSessionReads = async (page, accountId, projectId, answer) => {
+// `answer` is a status or the code of a refusal; `projectState` is what the Project read says: 'live', 'deleting' or the code of a refusal.
+const stubSessionReads = async (page, accountId, projectId, answer, projectState = () => 'live') => {
   await page.route('**/api/session', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], administrator: false }) }))
   await routeBuilder(page, builderState([conversation(conversationIdOf('conversation-poll'), 'Conversa')]))
-  await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Poll', projectRevision: '50000000-0000-4000-8000-000000000001', archived: false, state: 'live' }) }))
+  await page.route(`**/api/control/projects/${projectId}`, (route) => {
+    const state = projectState()
+    return route.fulfill(state === 'live' || state === 'deleting'
+      ? { status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Poll', projectRevision: '50000000-0000-4000-8000-000000000001', archived: false, state }) }
+      : problem(state))
+  })
   let answered
   const firstRead = new Promise((resolve) => { answered = resolve })
   await page.route(`**/api/control/projects/${projectId}/builder-session`, async (route) => {
-    const status = answer()
-    await route.fulfill(status === 200
-      ? { status, contentType: 'application/json', body: JSON.stringify(sessionOf(projectId)) }
-      : problem({ 401: 'AUTHENTICATION_REQUIRED' }[status] ?? 'INTERNAL_UNEXPECTED'))
+    const reply = answer()
+    await route.fulfill(reply === 200
+      ? { status: 200, contentType: 'application/json', body: JSON.stringify(sessionOf(projectId)) }
+      : problem(typeof reply === 'string' ? reply : { 401: 'AUTHENTICATION_REQUIRED' }[reply] ?? 'INTERNAL_UNEXPECTED'))
     answered()
   })
   return { firstRead }
@@ -2222,6 +2228,40 @@ test('failed background polls keep the chat and show a note until a poll succeed
   await pollNow(page)
   await note.waitFor({ state: 'detached' })
   assert.equal(await messageBox(page).count(), 1)
+})
+
+test('a PROJECT_NOT_FOUND poll after a good load replaces the chat with the unavailable Project screen', async (t) => {
+  const accountId = '70000000-0000-4000-8000-000000000079'
+  const projectId = '70000000-0000-4000-8000-00000000007a'
+  const { page, origin } = await web.openPage(t, { viewport: { width: 1100, height: 850 } })
+  let answer = 200
+  let project = 'live'
+  const { firstRead } = await stubSessionReads(page, accountId, projectId, () => answer, () => project)
+
+  await openAfterFirstSessionRead(page, origin, projectId, firstRead)
+
+  answer = 'PROJECT_NOT_FOUND'
+  project = 'PROJECT_NOT_FOUND'
+  await pollNow(page)
+  await page.getByText('Não encontramos esse Projeto.').waitFor()
+  await messageBox(page).waitFor({ state: 'detached' })
+})
+
+test('a PROJECT_DELETING poll after a good load replaces the chat with the deletion in progress screen', async (t) => {
+  const accountId = '70000000-0000-4000-8000-00000000007b'
+  const projectId = '70000000-0000-4000-8000-00000000007c'
+  const { page, origin } = await web.openPage(t, { viewport: { width: 1100, height: 850 } })
+  let answer = 200
+  let project = 'live'
+  const { firstRead } = await stubSessionReads(page, accountId, projectId, () => answer, () => project)
+
+  await openAfterFirstSessionRead(page, origin, projectId, firstRead)
+
+  answer = 'PROJECT_DELETING'
+  project = 'deleting'
+  await pollNow(page)
+  await page.getByText('Exclusão do Projeto em andamento').waitFor()
+  await messageBox(page).waitFor({ state: 'detached' })
 })
 
 test('a 401 poll after a good load signs the user out', async (t) => {
