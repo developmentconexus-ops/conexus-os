@@ -99,7 +99,7 @@ const fakeKey = `sk-ant-api03-${'x'.repeat(40)}`
 const putKey = (app, key, { provider = 'anthropic', headers = authentic.headers } = {}) =>
   app.inject({ method: 'PUT', url: `/api/control/model-accounts/${provider}/api-key`, headers, cookies: authentic.cookies, payload: { key } })
 
-test('the key endpoint refuses a write from another origin, a key of the wrong shape and a provider with no API key accounts, and echoes none of them', async (t) => {
+test('the key endpoint refuses a write from another origin, a key of the wrong shape, an unknown provider and an inherited property name, and echoes no key', async (t) => {
   const written = []
   const { app } = await createApp(t, {}, { ...emptyDependencies(), write: async (input) => { written.push(input) } })
   const forged = await putKey(app, fakeKey, { headers: { ...hubJsonWrite, origin: 'https://evil.test' } })

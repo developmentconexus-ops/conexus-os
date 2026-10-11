@@ -39,7 +39,7 @@ test('a binding of a Connection that belongs to another Workspace is refused by 
   assert.deepEqual((await query(connection, 'SELECT count(*)::integer AS n FROM connector.project_binding WHERE connection_id = $1', [otherConnection])).rows, [{ n: 0 }])
 })
 
-test('the runtime role can only add and read registry revisions and thumbnails, never change them', async (t) => {
+test('the runtime role cannot update a registry revision or a thumbnail, or delete a thumbnail, and its delete of revisions is granted', async (t) => {
   const { database } = await setupConnectors(t, 'conexus_runtime_grants_registry')
   const run = (text) => database.transaction(ID.owner, async (gate) => (await admitAccount(gate)).tx.run(sql(Object.assign([text], { raw: [text] }))))
   await assert.rejects(run('UPDATE reg.artifact_revision SET digest = digest'), sqlstate('42501'), 'revision update')
