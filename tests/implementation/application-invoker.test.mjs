@@ -326,3 +326,10 @@ test('a native runner Failure releases both admission slots and the queued invoc
   assert.deepEqual(await queued, OK)
   assert.equal(calls, 2)
 })
+
+test('each refusal the runner hands back answers its own status and problem code', async () => {
+  for (const [code, status] of [['INPUT_REFUSED', 400], ['OPERATION_NOT_FOUND', 404], ['HANDLER_OUTPUT_REFUSED', 502], ['RESPONSE_TOO_LARGE', 502], ['HANDLER_TIMEOUT', 504], ['HANDLER_CRASHED', 500], ['HANDLER_FAILED', 500]]) {
+    const invoker = createApplicationInvoker({ invoke: async () => ({ ok: false, error: { code } }) })
+    assert.deepEqual(await call(invoker, 'p1'), { status, body: problem(code, status) }, code)
+  }
+})
