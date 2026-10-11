@@ -41,7 +41,7 @@ const makeStore = (calls, overrides = {}) => {
     createBuilderRun: async (input) => { row.requestText = input.content; return { ...row } },
     claimBuilderRun: async () => { calls.push('claim'); return { ...Object.assign(row, { state: 'RUNNING' }) } },
     setBuilderRunPhase: async ({ phase }) => { calls.push(['phase', phase]); return { ...Object.assign(row, { phase }) } },
-    readBuilderRun: async () => ({ ...row }),
+    readLatestRun: async () => ({ ...row }),
     failBuilderRun: async ({ failureCode: code }) => { calls.push(['fail', code]); Object.assign(row, { state: 'FAILED', phase: null, failureCode: code }) },
     interruptBuilderRun: async ({ failureCode: code }) => { calls.push(['interrupt', code]); Object.assign(row, { state: 'INTERRUPTED', phase: null, failureCode: code }) },
     requestBuilderRunCancellation: async () => { calls.push('request-cancellation'); return { ...Object.assign(row, { cancellationRequested: true }) } },
@@ -137,7 +137,7 @@ test('a browser following the conversation is handed the run as the builder-sess
 
 test('a phase the database refuses, as it does once a stop is requested, interrupts the run instead of failing it', async () => {
   const calls = []
-  const store = makeStore(calls, { setBuilderRunPhase: async ({ phase }) => { calls.push(['phase', phase]); return null }, readBuilderRun: async () => ({ builderRunId: runId, projectId, conversationId, state: 'RUNNING', cancellationRequested: true }) })
+  const store = makeStore(calls, { setBuilderRunPhase: async ({ phase }) => { calls.push(['phase', phase]); return null }, readLatestRun: async () => ({ builderRunId: runId, projectId, conversationId, state: 'RUNNING', cancellationRequested: true }) })
   const service = createBuilderService({ store, runs: makeRuns(), registry: {} })
   await send(service)
   await service.close()

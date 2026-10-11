@@ -1443,11 +1443,17 @@ test('a reply sent before the row says WAITING is refused, so a WAITING write th
   assert.deepEqual(run.calls.at(-1), ['interrupt', 'USER_CANCELLED'], 'a refused phase write is a stop that won')
 })
 
-test('an author who lost the Project before the candidate records the subject refusal and leaves main at the base', async (t) => {
-  const run = await harness(t, { candidateRefusal: new Failure('PROJECT_NOT_FOUND') })
+test('an author who lost the Project before the candidate ends the run as not admitted, publishes that end and leaves main at the base', async (t) => {
+  const run = await harness(t, {
+    candidateRefusal: new Failure('BUILDER_RUN_NOT_ADMITTED', { cause: new Failure('PROJECT_NOT_FOUND') }),
+    authorRead: async () => { throw new Failure('PROJECT_NOT_FOUND') },
+    persisted: (claimed) => ({ ...claimed, state: 'FAILED', phase: null, failureCode: 'BUILDER_RUN_NOT_ADMITTED' }),
+  })
   await run.start()
   await run.service.close()
-  assert.deepEqual(run.calls.filter(([kind]) => kind === 'candidate' || kind === 'fail' || kind === 'interrupt'), [['fail', 'PROJECT_NOT_FOUND']])
+  assert.deepEqual(run.calls.filter(([kind]) => kind === 'candidate' || kind === 'fail' || kind === 'interrupt'), [['fail', 'BUILDER_RUN_NOT_ADMITTED']])
+  assert.deepEqual([run.publishedRuns.at(-1).state, run.publishedRuns.at(-1).failureCode], ['FAILED', 'BUILDER_RUN_NOT_ADMITTED'])
+  assert.equal(run.logs.some(([code]) => code === 'BUILDER_RUN_SETTLE_FAILED'), false)
   assert.equal(await run.main(), run.base)
 })
 

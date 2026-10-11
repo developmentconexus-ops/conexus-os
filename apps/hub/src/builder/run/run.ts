@@ -46,7 +46,7 @@ class CandidateRefused extends Failure {
 
 type RunStore = Pick<BuilderStore, 'claimBuilderRun' | 'endUnclaimedBuilderRun' | 'setBuilderRunPhase' | 'recordBuilderRunCandidate' | 'bindBuilderRunMessage' | 'bindBuilderRunSandbox' |
   'recordConversationSandbox' | 'recordConversationSession' | 'settleBuilderRun' | 'advanceBuilderRunSource' |
-  'settleBuilderRunBuild' | 'failBuilderRun' | 'interruptBuilderRun' | 'readBuilderRun'>
+  'settleBuilderRunBuild' | 'failBuilderRun' | 'interruptBuilderRun' | 'readLatestRun'>
 
 /** What a run needs of the Hub. */
 export type RunEnvironment = Readonly<{
@@ -153,7 +153,7 @@ const viewOf = (run: Run, summary: BuilderRunSummary): BuilderRunView => ({ ...s
 
 // The database refuses a phase once a stop is asked for or once the row is no longer running; the row says which.
 const phaseRefusal = async (run: Run): Promise<Failure> => {
-  const persisted = await run.env.store.readBuilderRun({ accountId: run.request.accountId, projectId: run.row.projectId })
+  const persisted = await run.env.store.readLatestRun({ projectId: run.row.projectId })
   if (persisted?.builderRunId !== run.row.builderRunId || persisted.state !== 'RUNNING') return new RowEnded()
   return new Failure(persisted.cancellationRequested ? 'BUILDER_RUN_CANCELLED' : 'BUILDER_RUN_PHASE_UPDATE_REFUSED')
 }
@@ -419,7 +419,7 @@ const exit = async (run: Run, outcome: RunOutcome): Promise<void> => {
   run.env.ports.log('BUILDER_RUN_TIMING', run.timing.fields(run.row))
   await writeEnding(run, final)
   run.trace.end(final.kind === 'STOPPED' ? final.ending.failureCode : final.kind, final.kind === 'STOPPED' && final.ending.state === 'FAILED')
-  const latest = await run.env.store.readBuilderRun({ accountId: run.request.accountId, projectId: run.row.projectId }).catch((error: unknown) => { logged(run, 'BUILDER_RUN_SETTLE_FAILED')(error); return null })
+  const latest = await run.env.store.readLatestRun({ projectId: run.row.projectId }).catch((error: unknown) => { logged(run, 'BUILDER_RUN_SETTLE_FAILED')(error); return null })
   if (latest?.builderRunId === run.row.builderRunId) await run.env.publishRun(viewOf(run, latest))
   await run.prepared?.session.release().catch(logged(run, 'BUILDER_SESSION_RELEASE_FAILED'))
 }
