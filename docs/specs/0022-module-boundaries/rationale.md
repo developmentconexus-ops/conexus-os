@@ -26,7 +26,7 @@ A `public.ts` interface alongside `module.ts` intentionally differs from a singl
 
 Recommend named owner interfaces and existing native checks. Keep admission, held-run source/owner checks, lock order, one-statement served snapshots and transaction atomicity. Replace platform domain placement, subclassable sealed values, contradictory import rules and ordinary cross-owner SQL. Delete the seven old platform entries, obsolete file carve-outs, duplicated registry contracts and superseded SQL projections after all their callers move.
 
-Technical acceptance is pending. The worker does not approve this proposal. The planning session may accept it under the task's delegated technical scope; product decisions and merges remain outside that delegation.
+The planning session accepted this proposal technically on 2026-10-09, under the task's delegated technical scope, and the operator approved the spec on 2026-10-11. The worker approved nothing; product decisions and merges stayed outside that delegation.
 
 Preview pointer relocation is later Q5 work. Registry's run/source verification is later run-proof work. Each becomes a precise, stale-checked temporary dependency rather than being silently removed or swallowed into a Builder redesign. This boundary wave must leave the later migration smaller and named, not claim those issues solved.
 

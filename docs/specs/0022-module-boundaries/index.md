@@ -1,7 +1,8 @@
 # 0022. Explicit module ownership
 
 **Date**: 2026-10-09
-**Status**: Technically approved by Firstmate under delegated user authority on 2026-10-09, proposal commit `75d7accffc2bf4197eb4523d44f0346c237cd169`. This records technical acceptance, not a new direct operator utterance or merge permission.
+**Status**: Approved by the operator on 2026-10-11, commit e0353c3608651ad3573dc921fd8230cb318eb543
+**Reservation**: This is the operator's first approval of this spec. The acceptance of 2026-10-09 was technical and the manager's, under the authority given that day. No product behavior changes. The owner list is today's and changes when apps or the login move.
 **Lane**: lane:qualification, Q-b module boundaries
 **Execution branch**: `feat/conexus-module-boundaries`
 **Integration base**: `wave/company-model-accounts-spec`
@@ -234,7 +235,7 @@ The planning session holds exact outside-repository proof receipts. At acceptanc
 
 No Preview pointer migration, publication/data-environment feature, lease/generation/run redesign, Connector 0021 build, Applications backup change, product decision, live database/provider call or shared infrastructure change.
 
-Stop for a changed product invariant, missing owner contract, changed transaction/lock premise, forbidden proof widening, or growth beyond 70 product files/eight units. Routine observed caller drift inside the accepted map is recorded and migrated in its unit. Technical acceptance and batch reviews belong to the planning session; this proposal is not self-approved.
+Stop for a changed product invariant, missing owner contract, changed transaction/lock premise, forbidden proof widening, or growth beyond 70 product files/eight units. Routine observed caller drift inside the accepted map is recorded and migrated in its unit. Technical acceptance and batch reviews belong to the planning session and the approval to the operator; the spec's author approves neither.
 
 ## Executable consumer action inventory
 

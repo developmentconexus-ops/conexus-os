@@ -1,7 +1,8 @@
 # 0017. Model account foundations and core ownership
 
 **Date**: 2026-10-07
-**Status**: Approved by the operator on 2026-10-07, commit a5068fba54c676c2104b642ff08fd54ad9df8890
+**Status**: Approved by the operator on 2026-10-11, commit e0353c3608651ad3573dc921fd8230cb318eb543
+**Reservation**: Approved as the foundation: one core owner, secrets bound to their row, and the refresh rule. A company account belongs to one company, never to the whole installation, and a person keeps a personal account as well. The installation scope in the 0071 schema is replaced when the company-account spec is written.
 **Lane**: lane:qualification (Q-b custody; Q-c real Builder proof before foundation merge)
 **Wave branch**: wave/company-model-accounts-lote2 → wave/company-model-accounts-spec
 **Spec rewrite branch**: wave/model-accounts-respec → wave/company-model-accounts-spec
@@ -218,8 +219,8 @@ replaces the preview manifest with committed path/proof evidence; no missing own
 
 Each builder reads its card, the Design sections it cites, References copied and the actual production owner/proof fixtures above. Each ends
 with its deciding tests, production compilation and negative type proofs,
-`npm run verify:quick` and one green commit. The manifest in file-budget.mjs is the exact product
-allowlist; named tests/guide edits are additional non-product paths. No code outside the card.
+`npm run verify:quick` and one green commit. The manifest in `shape/file-budget.mjs` was the exact product
+allowlist; it was deleted with the shape, and no file in the repository holds that allowlist today. Named tests/guide edits are additional non-product paths. No code outside the card.
 
 ### U1. Pin real personal behavior before movement
 
@@ -313,7 +314,7 @@ After U6, run conexus-prove against the actual installed foundation, not only fa
 foundation remains unmergeable until a separately operator-authorized real Builder turn exercises
 native model resolution, stream response and exact payer recording through this core, including the
 configured native Google lifecycle if Google is enabled. Use the repository verify skill isolation and
-retain a durable receipt under T §9–10. No E2B/provider/pilot effect is authorized by this draft; request
+retain a durable receipt under T §9–10. No E2B/provider/pilot effect is authorized by this spec; request
 that bounded proof through firstmate at prove stage. Custody/boot/catalog proofs use local fixtures;
 the real turn proves the consumer contract and sends no company secrets to the sandbox. 0020's real
 company-scope proof is additional, not a substitute for the foundation's pre-merge consumer proof.
@@ -328,4 +329,4 @@ run end; or single-Hub instance exclusion is not enforced. Return with evidence 
 
 Stop for an undecided product choice, falsified premise, upstream owner conflict, unit larger than one
 fresh session or more than eight units/70 actual product paths. Do not build a shim or silently narrow
-an AC. This draft opens no implementation or pilot operation.
+an AC. The approval line opens the build of the units above; it opens no pilot operation.

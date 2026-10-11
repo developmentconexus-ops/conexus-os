@@ -31,7 +31,7 @@ On 2026-10-07 the operator answered “Aprovado error” to the study's section 
 
 The two independent spec reviewers (gpt-6.1-sol and gpt-6-sol) both reopened native runner escape/log ownership: runner/http.ts:59 logged before module.prepare reconstructed a Failure flowing into builder/run/run.ts:359 or service.ts:133. On 2026-10-07 instruction 005 relayed the operator’s “Aprovo” for option 2: final Hub exposure/Builder settlement owns one failure log, runner keeps original cause as a redacted native span event, existing unix instrumentation joins their trace, no recorded-failure role/header protocol/store and no path expansion. Locally unforwarded runner faults retain their local logger. The revised shape compiles producer and prepare/invoke/release consumption and named-Failure forwarding; unchanged terminal loggers need no skip state. Other findings corrected: action NONE, migration:null for transaction failures, missing-result rejection and table/body/response status agreement. Five corrected schema probes passed. Both independent reviewers rechecked the corrected flow and closed their findings with no new concrete blocker; their private reports preserve file:line evidence. Those review verdicts are distinct from the operator’s spec approval and the later built-head qualification proof.
 
-These decisions replace the former unsupported approval; they do not approve this revised spec. Its status is draft awaiting operator approval. Product builds remain gated. U1's characterization survives; its known guide departures are baseline facts with replacing units, rather than an impossible “stop on legacy defect” rule.
+These decisions replace the former unsupported approval; they are not the approval of this revised spec. That approval is the status line in the index, and it opens the build of the units. U1's characterization survives; its known guide departures are baseline facts with replacing units, rather than an impossible “stop on legacy defect” rule.
 
 The simplest target has one type-only Result, existing native Failure, one browser received role, one public Response writer, one canonical reader, app-only generation, one narrow start mapper and small named checks. It deliberately does not normalize lifecycle states, rewrite database history, generate a web reader, build a diagnosis service or classify every catch.
 
@@ -89,7 +89,7 @@ Untouched broker/check/control/Git/vendor/account/served-file mechanisms are def
 
 | Finding | Resolution and evidence | Target proof |
 | --- | --- | --- |
-| F1 unsupported approval/analysis | Unsupported status/overnight proof/lower bound removed. New root-cause study/options/checked references above; only relayed study/private-carrier approvals recorded. Draft status. | Spec review and actual operator approval gate |
+| F1 unsupported approval/analysis | Unsupported status/overnight proof/lower bound removed. New root-cause study/options/checked references above; only relayed study/private-carrier approvals recorded. Draft status until the operator's approval. | Spec review and actual operator approval gate |
 | F2 contradictory U1 stop | Existing PR retained; stop only on missing pin/integration or new premise/authority conflict. Known defects assigned U4/U6. `.network` grouping factual T correction with U1. | Existing pin on unchanged main and integrated wave, explicit doubles |
 | F3 lost useful diagnosis | Private typed fact variants and real consumers preserved; code-only public projection. data-plane reserved to retain failed migration identity. No prose SQLSTATE parser. R3 retains internal diagnosis. | U4 repair facts plus U5/U6 marker exclusion, real DB/confinement |
 | F4 reader matrix/trace/fetch | Matrix explicitly covers unknown, missing audience, malformed status/trace, rejection and abort at both real fetch call sites; canonical schema/formatter and UUID caller preserved. | U6 actual generated artifact, web build/browser and fetch identity |
@@ -168,7 +168,7 @@ builder-skills/conexus-app/references/list.tsx
 builder-skills/conexus-app/references/record.tsx
 contracts/api/product/openapi.json
 contracts/api/technical/openapi.yaml
-contracts/technical/error-model-census.json
+contracts/technical/error-model-census.json (not in the tree today; scripts/check-error-model.mjs holds the targets)
 contracts/technical/failures.json
 knip.jsonc
 package.json
@@ -178,8 +178,8 @@ packages/contract/src/index.ts
 packages/contract/src/operation.ts
 packages/contract/src/problem.ts
 packages/contract/src/result.ts
-scripts/census-error-model.mjs
-scripts/conexus-verify.mjs
+scripts/check-error-model.mjs (reserved as scripts/census-error-model.mjs)
+scripts/conexus-verify.mjs (deleted since; package.json registers the check)
 scripts/generate-failures.mjs
 ```
 
@@ -201,4 +201,4 @@ Each revision was checked out and read locally, read-only. Machine paths are not
 | Supabase monorepo | `cb52c0f42565032ab3f1cfb9a48fe4c44aad381e` | Located/versioned; packages/common searched, no relevant generator/Result mechanism established. Never substitute for inspected Supabase Auth. |
 | Conexus | Base/main/U1 revisions under Evidence | `operation.ts:66`; runner `server-manifest.ts:26-28,189,249-296`, `wire.ts:27-31`, `worker.ts:81-89`, `supervisor.ts:195-255`, `sandbox.ts:115-133`, `module.ts:57-66`, `http.ts:21-25`; Builder `run-operation.ts:85-113,200-203`, `application-build.ts:35-53`, `conversation-sandboxes.ts:53`; `problem.ts:9`; web `failure.ts:26-63`; generators `generate-client.mjs:65-84`, `generate-failures.mjs:89-141`; `db.ts:148-170`, catalog snapshot:453-456. Current evidence/delete destinations, never architectural authority. |
 
-The standing authority remains roadmap, decision register, product contract, mapped subject guides and delivery Waves, in their owning documents. This spec consumes authorization's interface only and does not certify its draft or edit its content.
+The standing authority remains roadmap, decision register, product contract, mapped subject guides and delivery Waves, in their owning documents. This spec consumes authorization's interface only and does not certify that spec or edit its content.
