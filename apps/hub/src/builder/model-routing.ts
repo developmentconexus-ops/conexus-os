@@ -4,9 +4,18 @@ import type { AccountId, BuilderRunId, ConversationId, ModelAccountId, ModelId, 
 import { admitRun, type RunOwner } from '../identity-access/public.js'
 import type { Database } from '../platform/db.js'
 import { Failure } from '../platform/failure.js'
-import type { ModelAccountModule, OpenRun } from '../model-account/module.js'
+import { parseModelId, type ModelAccountModule, type OpenRun } from '../model-account/module.js'
 import { readSessionModelId, readSessionThinkingLevel } from './harness/request-context.js'
 import { requireRunContext } from './run-context.js'
+
+/** What a conversation chose for itself: nothing, a model the Hub routes, or a choice that names none. */
+export type ConversationModel = Readonly<{ state: 'default' }> | Readonly<{ state: 'selected'; modelId: ModelId }> | Readonly<{ state: 'unusable' }>
+
+export function conversationModelOf(model: Readonly<{ hasSelection(): boolean; get(): string }>): ConversationModel {
+  if (!model.hasSelection()) return { state: 'default' }
+  const modelId = parseModelId(model.get())
+  return modelId ? { state: 'selected', modelId } : { state: 'unusable' }
+}
 
 function openRunFor({ data, owner, run }: Readonly<{ data: Database; owner: RunOwner; run: ReturnType<typeof requireRunContext> }>): OpenRun {
   return (work) => data.transaction(run.accountId, async (gate) => work(await admitRun(gate, run.builderRunId, owner)))
@@ -16,7 +25,7 @@ export function createBuilderModelRouting({ models, data, owner, conversationMod
   models: ModelAccountModule
   data: Database
   owner: RunOwner
-  conversationModel(accountId: AccountId, projectId: ProjectId, conversationId: ConversationId): Promise<ModelId | null>
+  conversationModel(accountId: AccountId, projectId: ProjectId, conversationId: ConversationId): Promise<ConversationModel>
   record(builderRunId: BuilderRunId, accountId: AccountId, modelAccountId: ModelAccountId): Promise<void>
 }>) {
   const call = async (requestContext: RequestContext, modelId: ModelId | null, thinkingLevel: ThinkingLevel | null): Promise<MastraModelConfig> => {
@@ -29,7 +38,10 @@ export function createBuilderModelRouting({ models, data, owner, conversationMod
   }
   return Object.freeze({
     check: async ({ accountId, projectId, conversationId }: Readonly<{ accountId: AccountId; projectId: ProjectId; conversationId: ConversationId }>): Promise<void> => {
-      const build = await conversationModel(accountId, projectId, conversationId) ?? await models.readDefault(accountId, 'build')
+      const chosen = await conversationModel(accountId, projectId, conversationId)
+      // The run would call the conversation's own choice, so the installation default cannot stand in for one that names no model.
+      if (chosen.state === 'unusable') throw new Failure('BUILDER_MODEL_NOT_SELECTED')
+      const build = chosen.state === 'selected' ? chosen.modelId : await models.readDefault(accountId, 'build')
       const memory = await models.readDefault(accountId, 'memory')
       if (!build || !memory) throw new Failure('BUILDER_MODEL_NOT_SELECTED')
       const checked = await models.checkBeforeRun(accountId, [build, memory])

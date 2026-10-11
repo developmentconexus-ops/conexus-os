@@ -86,7 +86,7 @@ test('Builder and memory consume the concrete owner, record the actual payer bef
   const runId = await f.seedRun(projectId)
   await query(f.connection, "INSERT INTO model.installation_default(role, model_id, updated_by) VALUES ('build', 'anthropic/claude-sonnet-5', $1), ('memory', 'anthropic/claude-haiku-4-5', $1)", [ID.owner])
   const builder = createBuilderStore({ database: f.database, ownerId: OWNER, registry: {} })
-  const routing = createBuilderModelRouting({ models: f.models, data: f.database, owner: { ownerId: OWNER }, conversationModel: async () => null,
+  const routing = createBuilderModelRouting({ models: f.models, data: f.database, owner: { ownerId: OWNER }, conversationModel: async () => ({ state: 'default' }),
     record: (builderRunId, accountId, modelAccountId) => builder.recordBuilderRunModelAccount({ builderRunId, accountId, modelAccountId }) })
   await routing.check({ accountId: ID.owner, projectId, conversationId: projectId })
   const seen = []
@@ -251,7 +251,7 @@ test('actual personal selection refuses absent and unsupported providers, retain
   const projectId = await f.seedBuilderProject()
   const runId = await f.seedRun(projectId)
   const builder = createBuilderStore({ database: f.database, ownerId: OWNER, registry: {} })
-  const routing = createBuilderModelRouting({ models: f.models, data: f.database, owner: { ownerId: OWNER }, conversationModel: async () => null,
+  const routing = createBuilderModelRouting({ models: f.models, data: f.database, owner: { ownerId: OWNER }, conversationModel: async () => ({ state: 'default' }),
     record: (builderRunId, accountId, modelAccountId) => builder.recordBuilderRunModelAccount({ builderRunId, accountId, modelAccountId }) })
   const check = () => routing.check({ accountId: ID.owner, projectId, conversationId: projectId })
   await assert.rejects(check(), { id: 'BUILDER_MODEL_NOT_SELECTED' })
@@ -574,7 +574,7 @@ test('real PostgreSQL timeout diagnosis survives Builder admission and native re
     }
     return work(gate)
   }) }
-  const routing = createBuilderModelRouting({ data, models: f.models, owner: { ownerId: OWNER }, conversationModel: async () => null,
+  const routing = createBuilderModelRouting({ data, models: f.models, owner: { ownerId: OWNER }, conversationModel: async () => ({ state: 'default' }),
     record: async () => undefined })
   const carried = context(runId, projectId, 'anthropic/claude-sonnet-5')
   const assertDiagnosis = (actual) => {

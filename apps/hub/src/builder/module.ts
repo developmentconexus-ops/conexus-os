@@ -1,4 +1,4 @@
-import { parseModelId, type ModelAccountModule } from '../model-account/module.js'
+import type { ModelAccountModule } from '../model-account/module.js'
 import { randomUUID } from 'node:crypto'
 import type { FastifyInstance } from 'fastify'
 import type { ToolsInput } from '@mastra/core/agent'
@@ -12,7 +12,7 @@ import { gitUnavailableAs } from './git-failure.js'
 import type { Job } from '../platform/jobs.js'
 import { logLine } from '../platform/logger.js'
 import { readSecretFile } from '../platform/secret-file.js'
-import type { ModelId, AccountId, BuilderRunId, ConversationId, ProjectId, BuilderTraceSummary } from '@conexus/contract'
+import type { AccountId, BuilderRunId, ConversationId, ProjectId, BuilderTraceSummary } from '@conexus/contract'
 import { registerBuilderRoutes } from './routes.js'
 import { mountLogFilter, mountValidationFailure, registerBuilderSessionRoutes } from './mastra-session-routes.js'
 import type { ToolPayloadProjection } from './mastra-session-routes.js'
@@ -41,7 +41,7 @@ import { conversationScope, createLiveConversations } from './conversation.js'
 import { createBuilderController } from './harness/index.js'
 import { starterProjectFiles } from './project-context.js'
 import { createProjectSourceReads } from './source.js'
-import { createBuilderModelRouting } from './model-routing.js'
+import { conversationModelOf, createBuilderModelRouting, type ConversationModel } from './model-routing.js'
 import { readRunContext } from './run-context.js'
 import { createBuilderMemory } from './memory.js'
 import type { BuilderRunDependencies } from './service.js'
@@ -149,10 +149,10 @@ export const createConfiguredBuilderModule = ({ data, database, builder, factory
     return liveConversations.open(ref)
   }
   // The conversation's model is the one in its Mastra session, never a copy of Mastra's thread keys.
-  const conversationModel = async (accountId: AccountId, projectId: ProjectId, conversationId: ConversationId): Promise<ModelId | null> => {
+  const conversationModel = async (accountId: AccountId, projectId: ProjectId, conversationId: ConversationId): Promise<ConversationModel> => {
     const session = await conversationSession({ accountId, projectId, conversationId })
     await session.thread.loadMetadata()
-    return session.model.hasSelection() ? parseModelId(session.model.get()) : null
+    return conversationModelOf(session.model)
   }
   const conversations = createConversations(async () => {
     const memory = await mastra.getStorage()?.getStore('memory')
