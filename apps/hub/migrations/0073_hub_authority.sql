@@ -1,5 +1,26 @@
 BEGIN;
 
+-- A role belongs to the cluster and its grants to one database, so this database cannot clear what
+-- another one still holds, and the roles cannot be dropped while it does. Stop before anything here
+-- changes: that other database is moved or rebuilt first.
+DO $migration$
+DECLARE
+  elsewhere text;
+BEGIN
+  SELECT string_agg(DISTINCT format('%s in %s', role.rolname, database.datname), ', ' ORDER BY format('%s in %s', role.rolname, database.datname))
+  INTO elsewhere
+  FROM pg_shdepend AS dependency
+  JOIN pg_roles AS role ON role.oid = dependency.refobjid
+  JOIN pg_database AS database ON database.oid = dependency.dbid
+  WHERE dependency.refclassid = 'pg_authid'::regclass
+    AND role.rolname IN ('hub_reader', 'hub_command', 'iam_rls', 'hub_builder_ingress')
+    AND database.datname <> current_database();
+  IF elsewhere IS NOT NULL THEN
+    RAISE EXCEPTION 'HUB_AUTHORITY_ROLE_USED_BY_ANOTHER_DATABASE: %', elsewhere;
+  END IF;
+END
+$migration$;
+
 DO $migration$
 DECLARE
   policy_row record;
@@ -66,10 +87,27 @@ DROP FUNCTION rls.acting_installation_administrator();
 DROP FUNCTION rls.acting_workspaces();
 DROP SCHEMA rls;
 
-DROP OWNED BY hub_reader;
-DROP OWNED BY hub_command;
-DROP OWNED BY iam_rls;
-DROP OWNED BY hub_builder_ingress;
+REVOKE ALL ON ALL TABLES IN SCHEMA builder, connector, iam, model, platform, project, reg, workspace FROM hub_reader, hub_command, iam_rls, hub_builder_ingress;
+REVOKE ALL ON SCHEMA builder, connector, iam, model, platform, project, reg, workspace FROM hub_reader, hub_command, iam_rls, hub_builder_ingress;
+
+-- The revokes above are every grant the migrations gave these roles. Anything they still own or
+-- hold was put here by hand, and is not this migration's to remove.
+DO $migration$
+DECLARE
+  unexpected text;
+BEGIN
+  SELECT string_agg(format('%s on %s', role.rolname, pg_describe_object(dependency.classid, dependency.objid, dependency.objsubid)), ', ' ORDER BY role.rolname, pg_describe_object(dependency.classid, dependency.objid, dependency.objsubid))
+  INTO unexpected
+  FROM pg_shdepend AS dependency
+  JOIN pg_roles AS role ON role.oid = dependency.refobjid
+  WHERE dependency.refclassid = 'pg_authid'::regclass
+    AND role.rolname IN ('hub_reader', 'hub_command', 'iam_rls', 'hub_builder_ingress');
+  IF unexpected IS NOT NULL THEN
+    RAISE EXCEPTION 'HUB_AUTHORITY_ROLE_DEPENDENCY_UNEXPECTED: %', unexpected;
+  END IF;
+END
+$migration$;
+
 DROP ROLE hub_reader;
 DROP ROLE hub_command;
 DROP ROLE iam_rls;
