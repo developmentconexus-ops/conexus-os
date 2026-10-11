@@ -3,7 +3,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, relative, resolve } from 'node:path'
 import test from 'node:test'
 import { RequestContext } from '@mastra/core/request-context'
-import { hubModuleUrl } from '../implementation/hub-build.mjs'
+import { hubModuleUrl } from './hub-build.mjs'
 
 const root = resolve(import.meta.dirname, '../..')
 
