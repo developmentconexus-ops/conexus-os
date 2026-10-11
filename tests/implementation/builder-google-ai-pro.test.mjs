@@ -7,6 +7,7 @@ import { join } from 'node:path'
 import { test } from 'node:test'
 import { setTimeout as delay } from 'node:timers/promises'
 import { hubModuleUrl } from './hub-build.mjs'
+import { takeHubLogs } from './hub-log-capture.mjs'
 
 const { GoogleAiProKey, encodeCredential } = await import(hubModuleUrl('model-account/credential.js'))
 
@@ -246,6 +247,26 @@ test('a write-back that fails rejects the sweep and keeps the only copy of the r
   lease.release()
   await assert.rejects(pool.sweepIdle(new AbortController().signal), { id: 'DATABASE_BUSY' })
   assert.equal(readFileSync(file, 'utf8'), refreshedBytes)
+})
+
+test('a close waits for every write-back, logs each one that failed, and keeps only the copies it could not write', async (t) => {
+  const { binary, stateDir } = scratch(t)
+  const { Failure } = await import(built('platform/failure.js'))
+  const pool = createCliproxyPool({ binary, stateDir })
+  const [failing, slow] = [encodeKey(record('ana@example.com')), encodeKey(record('bia@example.com'))]
+  const written = []
+  const leases = [
+    await pool.acquire(failing, async () => { throw new Failure('DATABASE_BUSY') }),
+    await pool.acquire(slow, async (refreshedKey) => { await delay(200); written.push(refreshedKey) }),
+  ]
+  writeFileSync(join(stateDir, instanceIdOf(failing), 'auth', 'antigravity-ana@example.com.json'), JSON.stringify({ type: 'antigravity', refresh_token: 'refreshed-ana' }))
+  writeFileSync(join(stateDir, instanceIdOf(slow), 'auth', 'antigravity-bia@example.com.json'), JSON.stringify({ type: 'antigravity', refresh_token: 'refreshed-bia' }))
+  for (const lease of leases) lease.release()
+  takeHubLogs()
+  await pool.close()
+  assert.equal(written.length, 1, 'the other instance had written back when close returned')
+  assert.deepEqual(takeHubLogs().map(({ message }) => message), ['DATABASE_BUSY'])
+  assert.deepEqual([existsSync(join(stateDir, instanceIdOf(failing))), existsSync(join(stateDir, instanceIdOf(slow)))], [true, false])
 })
 
 test('an instance copy that no longer parses writes nothing back and is deleted', async (t) => {

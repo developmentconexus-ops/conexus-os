@@ -331,6 +331,7 @@ async function sweepOrphans(state: PoolState): Promise<void> {
   }
 
 
+// Returns only once every stop and every write-back has settled. Nobody can retry a close, so each failure is logged here.
 async function closePool(state: PoolState): Promise<void> {
     state.closed = true
     const pending = [...state.instances.entries()].map(async ([id, instance]) => {
@@ -343,7 +344,9 @@ async function closePool(state: PoolState): Promise<void> {
         await instance.done
       }
     })
-    await Promise.all([...pending, ...[...state.logins].map((login) => login.close())])
+    for (const outcome of await Promise.allSettled([...pending, ...[...state.logins].map((login) => login.close())])) {
+      if (outcome.status === 'rejected') logFailure(logger, toFailure(outcome.reason))
+    }
   }
 
 export function createCliproxyPool({ binary, stateDir, idleMs = 10 * 60_000, readyTimeoutMs = 10_000, authReadyTimeoutMs = AUTH_READY_TIMEOUT_MS }: PoolOptions): CliproxyPool {
