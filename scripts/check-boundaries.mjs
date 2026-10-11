@@ -75,6 +75,13 @@ const templateParts = (template) => (ts.isNoSubstitutionTemplateLiteral(template
 const isPgQuery = (symbol) => declaredIn(symbol, /node_modules\/(?:@types\/)?pg\//)
 const isResponseJson = (symbol) => ['Response', 'Body'].includes(parentName(symbol) ?? '')
 
+// What the split wall left behind: the retired roles, the row security helpers and the session settings that carried the actor.
+const OBSOLETE_RUNTIME_SYMBOLS = /\b(?:hub_reader|hub_command|iam_rls|hub_builder_ingress)\b|\brls\.|conexus\.(?:account_id|job)\b|\b(?:set_config|current_setting)\s*\(/gi
+// A role switch is also a retired way to act as someone. The application runner's provisioner switches roles in the Applications cluster, which has no Hub roles.
+const ROLE_SWITCH = /\b(?:set|reset)\s+(?:(?:local|session)\s+)?role\b/gi
+const hubSource = (path) => path.startsWith('apps/hub/src/')
+const OBSOLETE_SYMBOLS = (path) => (path.startsWith('apps/hub/src/app-runner/') ? [OBSOLETE_RUNTIME_SYMBOLS] : [OBSOLETE_RUNTIME_SYMBOLS, ROLE_SWITCH])
+
 const SQL_DECLARATION = /apps\/hub\/src\/platform\/db\.ts$/
 // Admission reads preserve cross-owner authorization; Registry pointers and retention await their named waves.
 export const SQL_DEPENDENCIES = Object.freeze([
@@ -202,12 +209,16 @@ const gateOpenerOf = (checker, node, gate) => {
   return Object.hasOwn(gate.readers, symbol.name) && declaredIn(symbol, gate.declaration) ? symbol.name : undefined
 }
 
-export const findings = (program, { root = repo, pgEdge = DATABASE_EDGE, responseEdge = RESPONSE_EDGE, authorityWriters = AUTHORITY_TABLE_WRITERS, splitTables = {}, gate = GATE_OPENER, sqlTables = null, sqlOwner = hubOwner, sqlTagDeclaration = SQL_DECLARATION, sqlDependencies = [], matchedSqlDependencies = new Set() } = {}) => {
+export const findings = (program, { root = repo, pgEdge = DATABASE_EDGE, responseEdge = RESPONSE_EDGE, authorityWriters = AUTHORITY_TABLE_WRITERS, splitTables = {}, gate = GATE_OPENER, sqlTables = null, sqlOwner = hubOwner, sqlTagDeclaration = SQL_DECLARATION, sqlDependencies = [], matchedSqlDependencies = new Set(), obsoleteScope = hubSource } = {}) => {
   const checker = program.getTypeChecker()
-  const result = { pgQueryRows: [], pgImportFiles: [], webResponseJson: [], sqlWrites: [], authorityTableWrites: [], gateReferences: [], rawPersonReads: [], sqlOwners: [] }
+  const result = { pgQueryRows: [], pgImportFiles: [], webResponseJson: [], sqlWrites: [], authorityTableWrites: [], gateReferences: [], rawPersonReads: [], sqlOwners: [], obsoleteRuntimeSymbols: [] }
   for (const file of program.getSourceFiles()) {
     if (file.isDeclarationFile || file.fileName.includes('/node_modules/')) continue
     const path = relative(root, file.fileName)
+    if (obsoleteScope(path)) {
+      const symbols = OBSOLETE_SYMBOLS(path).flatMap((pattern) => [...file.text.matchAll(pattern)].map((found) => found[0].toLowerCase().replace(/\s+/g, ' ')))
+      for (const symbol of new Set(symbols)) result.obsoleteRuntimeSymbols.push(`${path}: ${symbol}`)
+    }
     const visit = (node) => {
       if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) && node.expression.name.text === 'read'
         && ts.isIdentifier(node.expression.expression) && node.expression.expression.text === 'database') {
@@ -276,8 +287,6 @@ export const census = () => {
   const matchedSqlDependencies = new Set()
   const hub = findings(programOf('apps/hub/tsconfig.json'), { splitTables: tables, sqlTables: tables, sqlDependencies: SQL_DEPENDENCIES, matchedSqlDependencies })
   const web = findings(programOf('apps/web/tsconfig.json'))
-  const obsolete = /\b(?:hub_reader|hub_command|iam_rls|hub_builder_ingress)\b|rls\.|conexus\.(?:account_id|job)\b|\b(?:set_config|current_setting)\s*\(/i
-  const obsoleteRuntimeSymbols = hubSourceFiles().flatMap(({ path, source }) => obsolete.test(source) ? [path] : [])
   return {
     pgQueryRows: hub.pgQueryRows,
     pgImportFiles: hub.pgImportFiles,
@@ -287,13 +296,9 @@ export const census = () => {
     gateReferences: hub.gateReferences,
     rawPersonReads: hub.rawPersonReads,
     sqlOwners: [...hub.sqlOwners, ...staleSqlDependencies(SQL_DEPENDENCIES, matchedSqlDependencies)],
-    obsoleteRuntimeSymbols,
+    obsoleteRuntimeSymbols: hub.obsoleteRuntimeSymbols,
   }
 }
-
-const hubSourceFiles = () => programOf('apps/hub/tsconfig.json').getSourceFiles()
-  .filter((file) => !file.isDeclarationFile && !file.fileName.includes('/node_modules/') && file.fileName.startsWith(join(repo, 'apps/hub/src')))
-  .map((file) => ({ path: relative(repo, file.fileName), source: file.text }))
 
 // Failure decoding is an HTTP boundary too: readFailure parses Problem before exposing a code.
 export const BOUNDARY_EXCEPTIONS = Object.freeze({
