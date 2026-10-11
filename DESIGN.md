@@ -361,7 +361,7 @@ patched one loses it.
 - One action **must** have one text everywhere.
 - A failure's words **must** come from `contracts/technical/failures.json`, read by
   `@conexus/contract` in the browser and emitted from that reader for standalone apps. Never show the
-  internal code in mono. A failure Conexus caused never asks
+  internal code in mono. Only a validated nonzero SYSTEM trace may appear as a reference. A failure Conexus caused never asks
   the person to try again. A failure the person can fix says what to change.
 - A tool **must** show as a sentence while it runs and when it ends (`tool-sentences.ts`), never as
   its technical name. Reasoning shows only as "Pensando…".
