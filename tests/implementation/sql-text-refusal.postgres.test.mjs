@@ -37,3 +37,11 @@ test('transactions remain non-nestable across read and command entries', async (
   await assert.rejects(database.read(ID.member, () => database.transaction(ID.member, async () => 1)), nested)
   assert.equal(await database.read(ID.member, async () => 1), 1)
 })
+
+test('a read opens a READ ONLY transaction and a command does not', async (t) => {
+  const { database } = await setupProjects(t, 'conexus_read_only_entry')
+  const Setting = z.object({ value: z.string() })
+  const readOnly = sql`SELECT current_setting('transaction_read_only') AS value`
+  assert.deepEqual(await database.read(ID.member, (gate) => admitAccount(gate).then((proof) => proof.tx.rows(Setting, readOnly))), [{ value: 'on' }])
+  assert.deepEqual(await database.transaction(ID.member, async (gate) => (await admitAccount(gate)).tx.rows(Setting, readOnly)), [{ value: 'off' }])
+})
