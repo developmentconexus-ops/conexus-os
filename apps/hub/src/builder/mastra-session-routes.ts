@@ -9,7 +9,7 @@ import { ConversationId, ProjectId, type AccountId, type ProjectId as ProjectIdT
 import { foreignRoutes } from '../http/access.js'
 import { parseJsonBody } from '../http/app.js'
 import { currentTraceReference, failureResponse } from '../http/problem.js'
-import { Failure, logFailure, toFailure } from '../platform/failure.js'
+import { Failure, failureRow, logFailure, toFailure } from '../platform/failure.js'
 import { logger } from '../platform/logger.js'
 import type { LiveConversations } from './conversation.js'
 import type { ControllerSession } from './run/ports.js'
@@ -165,7 +165,7 @@ function failureRoute(route: ServerRoute): ServerRoute {
       const failure = toFailure(error)
       logFailure(logger, failure)
       const response = failureResponse({ code: failure.id, traceId: currentTraceReference() })
-      throw new HTTPException(undefined, { res: response })
+      throw new HTTPException(failureRow(failure.id).status, { res: response })
     }
   })
 }
@@ -321,7 +321,7 @@ const registerGuardedMastraMount = async (app: FastifyInstance, mount: GuardedMo
       if (creating) {
         const conversationId = conversationOf(sessionScope)
         if (!conversationId || opened.threadId !== conversationId) throw new Failure('CONVERSATION_SESSION_REFUSED')
-        if (await mount.conversationOwner({ projectId, conversationId }) === 'OTHER') throw new Failure('CONVERSATION_CONFLICT')
+        if (await mount.conversationOwner({ projectId, conversationId }) === 'OTHER') throw new Failure('CONVERSATION_NOT_FOUND')
         await mount.conversations.open({ accountId, projectId, conversationId })
         admitted.set(request, { accountId, scope: sessionScope })
         return undefined

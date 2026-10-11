@@ -42,7 +42,7 @@ const turnsWithin = async (ms, started = modelTurns.length) => {
 
 // The Hub's own mount over the Builder's controller, with the Project admission, the conversation
 // owner and the busy check the Hub wires in production, and conversation A already opened.
-const createBuilderApp = async (t, { accountId = accountA, providerDown = false, busy = false, answered = [], answerOutcome = () => 'ACCEPTED', model: modelOf = model } = {}) => {
+const createBuilderApp = async (t, { accountId = accountA, providerDown = false, busy = false, answered = [], answerOutcome = () => 'ACCEPTED', model: modelOf = model, toolPayloads } = {}) => {
   const root = mkdtempSync(join(tmpdir(), 'conexus-builder-routes-'))
   const storage = new LibSQLStore({ id: `builder-boundary-${randomUUID()}`, url: `file:${join(root, 'session.db')}` })
   const memory = new Memory({ storage, options: { lastMessages: 20 } })
@@ -69,6 +69,7 @@ const createBuilderApp = async (t, { accountId = accountA, providerDown = false,
         conversationOwner: ({ projectId, conversationId }) => conversations.ownerOf(projectId, conversationId),
         projectBusy: async () => busy,
         answerQuestion: (input) => { answered.push(input); return answerOutcome(input) },
+        ...(toolPayloads ? { toolPayloads } : {}),
       })
       return []
     },
@@ -145,17 +146,25 @@ test("a conversation is opened on the thread id the browser chose, listed under 
   assert.deepEqual((await listConversations(app)).sort(), [conversationA, chosen].sort())
 })
 
-test('a conversation session opens only on its own thread, and an id another Project holds is a conflict', async (t) => {
+test('a conversation session opens only on its own thread, and an id another Project holds is not found, as on every sibling route', async (t) => {
   const { app, controller } = await createBuilderApp(t, { accountId: accountA })
   const elsewhere = randomUUID()
   await controller.createSession({ resourceId: `project:${projectB}`, scope: `conversation:${elsewhere}`, threadId: elsewhere })
   const mismatched = await openConversation(app, projectA, randomUUID(), randomUUID())
   const runScope = await app.inject({ method: 'POST', url: `${PREFIX}/sessions`, ...authentic, payload: { resourceId: `project:${projectA}`, sessionScope: `builder:${randomUUID()}`, threadId: conversationA } })
   const taken = await openConversation(app, projectA, elsewhere)
-  assert.deepEqual([mismatched.statusCode, runScope.statusCode, taken.statusCode], [400, 400, 409])
-  assert.equal(taken.json().type.endsWith('CONVERSATION_CONFLICT'), true)
+  assert.deepEqual([mismatched.statusCode, runScope.statusCode], [400, 400])
   const read = await app.inject({ method: 'GET', url: `${sessionBase()}?${inConversation(elsewhere)}`, ...authentic })
-  assert.equal(read.statusCode, 404, "another Project's conversation is not found under this Project")
+  const unknown = await app.inject({ method: 'GET', url: `${sessionBase()}?${inConversation(randomUUID())}`, ...authentic })
+  const answer = (response) => [response.statusCode, response.json().code]
+  assert.deepEqual([answer(taken), answer(read), answer(unknown)], Array(3).fill([404, 'CONVERSATION_NOT_FOUND']))
+  assert.equal((await controller.getSessionByResource(`project:${projectA}`, `conversation:${elsewhere}`)) ?? null, null, 'no session opens here on a thread another Project holds')
+})
+
+test('a native session route that fails with a handled failure answers that failure\'s status', async (t) => {
+  const { app } = await createBuilderApp(t, { toolPayloads: { value: () => { throw new Failure('CONVERSATION_NOT_FOUND') }, stream: () => (event) => event } })
+  const response = await app.inject({ method: 'GET', url: `${sessionBase()}/threads/${conversationA}/messages`, ...authentic })
+  assert.deepEqual([response.statusCode, response.json().status, response.json().code], [404, 404, 'CONVERSATION_NOT_FOUND'])
 })
 
 test("a conversation's model changes only while no run is in flight", async (t) => {
