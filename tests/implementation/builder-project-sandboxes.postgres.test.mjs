@@ -16,6 +16,7 @@ async function openBuilderModule(t, prefix, killRecorded) {
   const fixture = await setupBuilder(t, prefix)
   const { connection, database } = fixture
   await query(connection, `ALTER ROLE hub_factory LOGIN PASSWORD '${FACTORY_PASSWORD}'`)
+  fixture.onCleanup(() => query(connection, 'ALTER ROLE hub_factory PASSWORD NULL'))
   const directory = mkdtempSync(resolve(tmpdir(), 'builder-sandboxes-'))
   fixture.onCleanup(() => rmSync(directory, { recursive: true, force: true }))
   const passwordFile = resolve(directory, 'factory-password')
