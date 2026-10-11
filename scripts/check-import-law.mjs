@@ -41,6 +41,8 @@ export const PLATFORM_FILES = Object.freeze([
   'secrets.ts',
   'sql-lexer.ts',
 ])
+// The Hub's root holds the entry and its composition, like platform holds its inventory: a new file there has no owner.
+export const HUB_ROOT_FILES = Object.freeze(['hub.ts', 'reset.d.ts', 'server.ts'])
 const SESSION_TYPES = new Set(['CurrentSession', 'HubSession', 'HubSessionDigest'])
 // The application runner's worker loads the one admitted handler module whose path the supervisor
 // fixed for this invocation, inside its sandbox. It is the only computed import in production.
@@ -222,7 +224,9 @@ export function checkImportLaw(rootDirectory) {
     return layer && !TECHNICAL_HUB_LAYERS.has(layer) && !Object.hasOwn(HUB_OWNERS, layer)
   })
   const unknownPlatform = files.map(relativeRoot).filter((path) => path.startsWith('apps/hub/src/platform/') && !PLATFORM_FILES.includes(path.slice('apps/hub/src/platform/'.length)))
+  const unknownRoot = files.map(relativeRoot).filter((path) => /^apps\/hub\/src\/[^/]+$/.test(path) && !HUB_ROOT_FILES.includes(path.slice('apps/hub/src/'.length)))
   const violations = unknownPlatform.map((source) => violation('IMPORT_CENSUS', source, '<unregistered platform file>', 'platform contains only the declared technical inventory'))
+  violations.push(...unknownRoot.map((source) => violation('IMPORT_CENSUS', source, '<unregistered root file>', 'the Hub root contains only its entry and composition files')))
   violations.push(...unknownOwners.map((source) => violation('IMPORT_CENSUS', source, '<unknown owner>', 'every Hub owner must declare its public entries and dependencies')))
   violations.push(...census.missingAppSources.map((source) =>
     violation('IMPORT_CENSUS', source, '<missing src>', 'every application must expose a censused src production root'),

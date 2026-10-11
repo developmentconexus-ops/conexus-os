@@ -94,3 +94,30 @@ test('a ChatGPT start whose device endpoint fails answers MODEL_LOGIN_UNAVAILABL
   const reply = await post(app, '/api/control/model-accounts/openai-codex/oauth/start')
   assert.deepEqual([reply.statusCode, problem(reply)], [503, 'MODEL_LOGIN_UNAVAILABLE'])
 })
+
+const fakeKey = `sk-ant-api03-${'x'.repeat(40)}`
+const putKey = (app, key, { provider = 'anthropic', headers = authentic.headers } = {}) =>
+  app.inject({ method: 'PUT', url: `/api/control/model-accounts/${provider}/api-key`, headers, cookies: authentic.cookies, payload: { key } })
+
+test('the key endpoint refuses a write from another origin, a key of the wrong shape, an unknown provider and an inherited property name, and echoes no key', async (t) => {
+  const written = []
+  const { app } = await createApp(t, {}, { ...emptyDependencies(), write: async (input) => { written.push(input) } })
+  const forged = await putKey(app, fakeKey, { headers: { ...hubJsonWrite, origin: 'https://evil.test' } })
+  const misshapen = await putKey(app, 'sk-proj-not-an-anthropic-key-0123456789')
+  const unknown = await putKey(app, fakeKey, { provider: 'mistral' })
+  const inherited = await putKey(app, fakeKey, { provider: 'constructor' })
+  const replies = [forged, misshapen, unknown, inherited]
+  assert.deepEqual(replies.map((reply) => [reply.statusCode, problem(reply)]), [
+    [403, 'REQUEST_AUTHENTICITY_DENIED'], [400, 'MODEL_ACCOUNT_KEY_REFUSED'], [404, 'MODEL_ACCOUNT_PROVIDER_UNKNOWN'], [404, 'MODEL_ACCOUNT_PROVIDER_UNKNOWN'],
+  ])
+  for (const reply of replies) assert.doesNotMatch(reply.body, /sk-ant-|sk-proj-/)
+  assert.deepEqual(written, [])
+})
+
+test('a pasted Anthropic key is trimmed, stored as the person\'s own api_key and never answered back', async (t) => {
+  const written = []
+  const { app } = await createApp(t, {}, { ...emptyDependencies(), write: async (input) => { written.push(input) } })
+  const stored = await putKey(app, `  ${fakeKey}\n`)
+  assert.deepEqual([stored.statusCode, stored.body], [204, ''])
+  assert.deepEqual(written, [{ account: { accountId: ana, displayName: 'Ana' }, credential: { provider: 'anthropic', kind: 'api_key', value: fakeKey } }])
+})

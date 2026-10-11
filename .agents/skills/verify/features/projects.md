@@ -7,7 +7,7 @@ A person creates a Workspace, starts Projects in it from the composer or a form,
 - `ws-create` creates a Workspace from `/workspaces/new`.
 - `project-start` starts a Project from the Workspace home's composer, through the `Nome do Projeto` step, and sends the first message.
 - `project-new-form` creates a Project from the `Novo Projeto` form. With no description it sends no message.
-- `project-list` lists the Workspace's active Projects as cards with a thumbnail, a state chip and `Alterado …`. Archived Projects are left out. The chip reads `Construindo` while a run is queued or running, `Falhou: build do aplicativo` after a failed run, `Em uso` when a Preview exists, `Sem prévia ainda` otherwise, and `Exclusão pendente` for a Project whose deletion did not finish.
+- `project-list` lists the Workspace's active Projects as cards with a thumbnail, a state chip and `Alterado …`. Archived Projects are left out. The chip reads `Construindo` while a run is queued or running, `Falhou: build do aplicativo` after a failed run, `Em uso` when a Preview exists, `Sem prévia ainda` otherwise, and `Exclusão em andamento` for a Project whose deletion did not finish.
 - `ws-people` lists the Workspace's members and invites someone by email and role, at `/workspaces/<id>/settings/people`.
 
 ## How to get to it (user POV)
@@ -33,7 +33,7 @@ Preconditions:
 
 ## Gotchas
 
-- Under this harness only `Sem prévia ainda`, `Falhou: build do aplicativo` and `Exclusão pendente` show. `Construindo` (a run needs a sandbox), `Em uso` and the thumbnail image (`Prévia de <name>`; without a Preview the card shows only the Conexus mark) need a built app, and an archived Project (hidden from the list, `Arquivado` chip on its settings page) needs a screen that archives, which doesn't exist. These are source-only (`project-grid.tsx`, `workspace-projects.tsx`); report them as skipped with "no built app".
+- Under this harness only `Sem prévia ainda`, `Falhou: build do aplicativo` and `Exclusão em andamento` show. `Construindo` (a run needs a sandbox), `Em uso` and the thumbnail image (`Prévia de <name>`; without a Preview the card shows only the Conexus mark) need a built app, and an archived Project (hidden from the list, `Arquivado` chip on its settings page) needs a screen that archives, which doesn't exist. These are source-only (`project-grid.tsx`, `workspace-projects.tsx`); report them as skipped with "no built app".
 - The card for a Project named from the composer takes the message's first words as its name, such as `Crie um contador simples com um botão`.
 - Starting a Project from the composer sends the first message, which starts a Builder turn. Under this harness that turn fails (see [Construir](./construir.md)). The Project and its repository still exist.
 - The Workspace id is only in the URL. Read it from the URL that `wait` prints.

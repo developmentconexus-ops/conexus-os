@@ -87,10 +87,23 @@ test('every import-law RED control fires its named rule', async (suite) => {
       'apps/web/src/b.ts': 'import "./a.js"',
     }],
     ['IMPORT_CENSUS', { 'apps/uncensused/README.md': 'missing src' }],
+    ['IMPORT_CENSUS unregistered Hub root file', {
+      'apps/hub/src/shared.ts': 'export * from "./registry/seal.js"',
+      'apps/hub/src/registry/seal.ts': '',
+    }],
   ]
   for (const [label, files] of cases) {
     const id = label.split(' ')[0]
     await suite.test(label, () => assertRule(id, files))
+  }
+})
+
+test('the Hub root admits its entry and composition files and no other', () => {
+  const root = fixture({ 'apps/hub/src/hub.ts': '', 'apps/hub/src/server.ts': '', 'apps/hub/src/reset.d.ts': '', 'apps/hub/src/registry/seal.ts': '' })
+  try {
+    assert.deepEqual(checkImportLaw(root), [])
+  } finally {
+    rmSync(root, { recursive: true, force: true })
   }
 })
 

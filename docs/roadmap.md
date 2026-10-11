@@ -16,8 +16,9 @@ sandbox, and the app runs on the platform behind the company's sign-in. The
 ## Where we are
 
 Stage 1 and Stage 2 gates Q1 to Q4 are closed. The structural waves that make a sound base are
-finished except S1 (checked boundaries, in progress). The authorization model, error model wave 1
-and company model accounts advance through the new flow in parallel. The remaining code base sweeps
+finished except S1 (checked boundaries, in progress). The authorization model, error model wave 1,
+the foundation of company model accounts and module boundaries are built together on one integrated
+wave branch, `wave/company-model-accounts-spec`. It has not entered `main`. The remaining code base sweeps
 come before Q5. The Builder block, the screen check and the Q5 preparation that Q5 does not need come after its verdict.
 `main` is the trunk; batch pull requests target their wave branch, and wave pull requests target `main`.
 
@@ -56,12 +57,14 @@ naming the wrong reason when Keycloak reports an unverified email. S1 part 6 fix
 
 ## Work in progress
 
-The planning session advances three waves in parallel through the [wave flow](development/delivery.md#waves),
-within its stage and work-in-progress gates:
+Four specs are built on the integrated wave branch and travel into `main` as one wave pull request,
+which stays a draft until the wave is proved
+([wave flow](development/delivery.md#waves)). The whole-wave review asked for changes, and fix
+batches answer it:
 
 - **Hub authorization model, spec 0018**, [#543](https://github.com/developmentconexus-ops/conexus-os/issues/543),
-  `lane:qualification`. This closes S1. One check family, copied and adapted from Documenso, is
-  required by type on reads and writes. Row security leaves, and every refusal originates in one
+  `lane:qualification`. Built. This closes S1. One check family, copied and adapted from Documenso, is
+  required by type on reads and writes. Row security left, and every refusal originates in one
   place. S1's spec 0015 parts 0 (#509), 3 (#510), 7 (#511), 0b (#512), 2 (#513), 1 (#514),
   5 (#532), 4 (#533) and 6 (#546, after #539, #541 and #545) are merged. Part 6 fixed the no-access
   page. After the authorization wave comes the local reset, the test as a person and the S1 proof.
@@ -69,14 +72,15 @@ within its stage and work-in-progress gates:
   operator's decision of 2026-10-10 it is deferred: it is cut once, when the hosting direction
   under evaluation is decided.
 - **Error model, wave 1, spec 0019**, [#553](https://github.com/developmentconexus-ops/conexus-os/issues/553),
-  `lane:qualification`. One failure model for every process, one result type for a refusal, one
-  sender and one reader. It absorbs [#549](https://github.com/developmentconexus-ops/conexus-os/issues/549),
-  the code base's one failure sender item, and the known sandbox-start defect that ends as
-  `INTERNAL_UNEXPECTED`. That expected platform failure needs its own failure-table row and
-  person-facing text, with the verification recipe updated alongside it.
-- **Company model accounts, spec 0017.** Its first part is already built. A company account held by
-  the installation sits beside each person's own; the person's account comes first in the screen
-  and in runs.
+  `lane:qualification`. Built: one failure model for every process, one result type for a refusal,
+  one sender and one reader. It absorbed [#549](https://github.com/developmentconexus-ops/conexus-os/issues/549),
+  the code base's one failure sender item, and the sandbox-start defect, which now ends as
+  `BUILDER_SANDBOX_OPEN_FAILED` with its own failure-table row and person-facing text.
+- **Company model accounts, spec 0017.** Its foundation is built: one owner for each person's own model
+  account. The company account held by the installation, with its fallback and its default, is the
+  later spec 0020.
+- **Module boundaries, spec 0022**, `lane:qualification`. Built: each Hub owner declares its public
+  entries and dependencies, and checks enforce them for imports and for SQL.
 
 **Known gap.** No screen sets the installation's default Builder model (`model.installation_default`).
 On a fresh installation every turn ends as `BUILDER_MODEL_NOT_SELECTED` until the value is written by
@@ -108,9 +112,10 @@ This order changes no gate status. Work follows the
 [limits on work in progress](development/delivery.md#size-work-by-appetite-and-limit-work-in-progress).
 Parallel planning does not bypass a spec's approval or the build and proof gates.
 
-1. **Advance the three current waves.** Authorization (spec 0018, #543) finishes S1, followed by
-   the local reset, the test as a person and the proof. Error model wave 1 (spec 0019, #553) and
-   company model accounts (spec 0017, first part built) advance beside it through the new flow.
+1. **Land the integrated wave.** Fix the review findings on the wave branch, then run the proof and
+   the review again on the new head. The operator's verdict on the wave pull request into `main`
+   follows. Authorization (spec 0018, #543) then finishes S1 with the local reset, the test as a
+   person and the proof.
 2. **Error model, wave 2**, [#554](https://github.com/developmentconexus-ops/conexus-os/issues/554),
    `lane:shaped`, after wave 1. Sweep the `catch` blocks and `INTERNAL_UNEXPECTED` cases and clean
    the failure table by codemod, using the established model.
@@ -128,9 +133,8 @@ Parallel planning does not bypass a spec's approval or the build and proof gates
    The approved sweep specs name their census targets and the code base done line.
 
    **Spec 0017 foundation status:** [spec 0017](specs/0017-company-model-accounts/index.md).
-   The core personal owner, row custody and current refresh release are implemented on the batch
-   branch; the next action is to close the independent review findings, integrate CI and publish the batch. Main landing still needs
-   its separately authorized real Builder qualification. Company commands, fallback and default
+   The core personal owner, row custody and current refresh release are built on the integrated
+   wave branch. Main landing still needs its separately authorized real Builder qualification. Company commands, fallback and default
    writers remain the later 0020 scope, with their own approval.
 4. **Q5, Release and Publish.** Its spec is written meanwhile. It is built when the code base
    done line holds.
@@ -193,9 +197,9 @@ work for every Connector, not one vendor.
 
 ## Exact next action
 
-Advance authorization (spec 0018, #543), error model wave 1 (spec 0019, #553) and company model
-accounts (spec 0017) in parallel through the new flow. Close S1 with the local reset, the test as a
-person and the proof. Then run error model wave 2 (#554) and the remaining code base sweeps.
+Fix the review findings on the integrated wave branch and prove and review its new head. After the
+operator's verdict on the wave pull request, close S1 with the local reset, the test as a person and
+the proof. Then run error model wave 2 (#554) and the remaining code base sweeps.
 Write the Q5 spec meanwhile; build Q5 when the code base done line holds.
 
 ## What the operator still owes

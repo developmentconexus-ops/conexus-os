@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict'
-import { resolve } from 'node:path'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { dirname, resolve } from 'node:path'
 import test from 'node:test'
 import ts from 'typescript'
 import { GATE_OPENER, findings, staleSqlDependencies, violations } from '../../scripts/check-boundaries.mjs'
@@ -36,7 +38,7 @@ test('the data module and the one caller are the edge', () => {
     rootNames: [resolve(root, 'tests/fixtures/census-boundaries/pg-rows.ts')],
     options: { strict: true, skipLibCheck: true, noEmit: true, target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.NodeNext, moduleResolution: ts.ModuleResolutionKind.NodeNext, types: [] },
   })
-  assert.deepEqual(findings(program, { root, pgEdge: ['tests/fixtures/census-boundaries/pg-rows.ts'], responseEdge: [] }), { pgQueryRows: [], pgImportFiles: [], webResponseJson: [], sqlWrites: [], authorityTableWrites: [], gateReferences: [], rawPersonReads: [], sqlOwners: [] })
+  assert.deepEqual(findings(program, { root, pgEdge: ['tests/fixtures/census-boundaries/pg-rows.ts'], responseEdge: [] }), { pgQueryRows: [], pgImportFiles: [], webResponseJson: [], sqlWrites: [], authorityTableWrites: [], gateReferences: [], rawPersonReads: [], sqlOwners: [], obsoleteRuntimeSymbols: [] })
 })
 
 test('a write whose filter is not visible in its template is found, and a write with one is not', () => {
@@ -136,7 +138,7 @@ test('an update or a delete of a split table must compare one of its register ke
 })
 
 test('every finding is prohibited unless it is an explicit boundary exception', () => {
-  assert.deepEqual(violations({ pgQueryRows: ['a.ts#x'], webResponseJson: ['apps/web/src/app/failure.ts#readFailure'], gateReferences: ['a.ts#y'] }), ['pgQueryRows: a.ts#x', 'gateReferences: a.ts#y'])
+  assert.deepEqual(violations({ pgQueryRows: ['a.ts#x'], webResponseJson: ['apps/web/src/app/failure.ts#readFailure'], gateReferences: ['a.ts#y'] }), ['pgQueryRows: a.ts#x', 'webResponseJson: apps/web/src/app/failure.ts#readFailure', 'gateReferences: a.ts#y'])
   assert.deepEqual(violations({ webResponseJson: ['a.ts#x', 'b.ts#y'] }, { webResponseJson: ['a.ts#x'] }), ['webResponseJson: b.ts#y'])
   assert.deepEqual(violations({ authorityTableWrites: ['DELETE iam.account'], sqlWrites: ['a merge'], pgImportFiles: ['a.ts'] }), ['authorityTableWrites: DELETE iam.account', 'sqlWrites: a merge', 'pgImportFiles: a.ts'])
 })
@@ -212,4 +214,42 @@ test('CTE definitions observe declaration order, recursive visibility and lexica
   assert.deepEqual(found.sqlOwners.filter((entry) => operations.has(entry.split('#')[1].split(':')[0])).sort(), [
     ['nonrecursive', 'project'], ['forward', 'later'], ['nestedHidden', 'project'], ['siblingScope', 'hidden'], ['statementScope', 'project'],
   ].map(([operation, relation]) => `${path}#${operation}: unregistered SQL relation ${relation}`).sort())
+})
+
+test('a retired role, a role switch, a row security helper and a session setting are found where they are written', () => {
+  const prefix = 'tests/fixtures/census-boundaries/obsolete-symbols.ts: '
+  assert.deepEqual(fixture('obsolete-symbols', { obsoleteScope: () => true }).obsoleteRuntimeSymbols.sort(), [
+    'conexus.account_id', 'conexus.job', 'current_setting(', 'hub_builder_ingress', 'hub_command', 'hub_reader', 'iam_rls', 'reset role', 'rls.', 'set local role', 'set role', 'set session role', 'set_config(',
+  ].map((symbol) => `${prefix}${symbol}`).sort())
+})
+
+test('a name that only contains a retired word, and a command that only looks like one, is not an obsolete symbol', () => {
+  assert.deepEqual(fixture('obsolete-lookalikes', { obsoleteScope: () => true }).obsoleteRuntimeSymbols, [])
+})
+
+test('only the Hub sources are scanned for obsolete symbols, and only the data plane of the application runner may switch roles in its own cluster', () => {
+  const directory = mkdtempSync(resolve(tmpdir(), 'boundaries-obsolete-'))
+  try {
+    const write = (path, text) => {
+      mkdirSync(dirname(resolve(directory, path)), { recursive: true })
+      writeFileSync(resolve(directory, path), text)
+      return resolve(directory, path)
+    }
+    const rootNames = [
+      write('apps/hub/src/identity-access/x.ts', 'export const q = "SET ROLE a; RESET ROLE; SELECT current_setting(\'a\')"'),
+      write('apps/hub/src/app-runner/data-plane.ts', 'export const q = "SET ROLE a; RESET ROLE; SELECT current_setting(\'a\')"'),
+      write('apps/hub/src/app-runner/worker.ts', 'export const q = "SET ROLE a"'),
+      write('apps/web/src/y.ts', 'export const q = "SET ROLE a"'),
+    ]
+    const program = ts.createProgram({ rootNames, options: { noEmit: true, skipLibCheck: true, types: [] } })
+    assert.deepEqual(findings(program, { root: directory, pgEdge: [], responseEdge: [] }).obsoleteRuntimeSymbols.sort(), [
+      'apps/hub/src/app-runner/data-plane.ts: current_setting(',
+      'apps/hub/src/app-runner/worker.ts: set role',
+      'apps/hub/src/identity-access/x.ts: current_setting(',
+      'apps/hub/src/identity-access/x.ts: reset role',
+      'apps/hub/src/identity-access/x.ts: set role',
+    ])
+  } finally {
+    rmSync(directory, { recursive: true, force: true })
+  }
 })
