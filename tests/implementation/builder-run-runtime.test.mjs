@@ -1461,6 +1461,7 @@ const NOT_ADMITTED = () => new Failure('BUILDER_RUN_NOT_ADMITTED', { cause: new 
 for (const [window, options] of [
   ['while the run was being prepared', { readProjectName: async () => { throw new Failure('PROJECT_NOT_FOUND') } }],
   ['before a phase was written', { phaseRefusal: (phase) => phase === 'AGENT' ? NOT_ADMITTED() : null }],
+  ['before the session opened', { openError: new Failure('ACCOUNT_INACTIVE') }],
 ]) {
   test(`an author removed ${window} ends the run as not admitted`, async (t) => {
     const run = await harness(t, options)

@@ -205,6 +205,16 @@ test('a run refuses to start when its conversation chose a model the Hub does no
   assert.deepEqual(checked, [['anthropic/claude-sonnet-5', 'anthropic/observer'], ['anthropic/main', 'anthropic/observer']])
 })
 
+test('the memory model of a run whose author was removed is refused as not admitted', async () => {
+  const { Failure } = await import(built('platform/failure.js'))
+  const routing = createBuilderModelRouting({
+    data: {}, owner: { ownerId: 'synthetic-memory-owner' }, models: { readDefault: async () => { throw new Failure('ACCOUNT_INACTIVE') } },
+    conversationModel: async () => ({ state: 'default' }), record: async () => {},
+  })
+  const refused = await routing.resolveMemory(runContext()).then(() => null, (error) => error)
+  assert.deepEqual([refused.id, refused.cause.id], ['BUILDER_RUN_NOT_ADMITTED', 'ACCOUNT_INACTIVE'])
+})
+
 test('a run refuses to start when the installation has no memory default, and no model of the conversation stands in for it', async () => {
   const { routing } = probeRouting()
   const unset = createBuilderModelRouting({

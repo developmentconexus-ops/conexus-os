@@ -51,6 +51,6 @@ export function createBuilderModelRouting({ models, data, owner, conversationMod
     resolve: ({ requestContext }: Readonly<{ requestContext: RequestContext }>): Promise<MastraModelConfig> =>
       call(requestContext, readSessionModelId(requestContext) ?? null, readSessionThinkingLevel(requestContext)),
     resolveMemory: async (requestContext: RequestContext): Promise<MastraModelConfig> =>
-      call(requestContext, await models.readDefault(requireRunContext(requestContext).accountId, 'memory'), null),
+      call(requestContext, await models.readDefault(requireRunContext(requestContext).accountId, 'memory').catch(runNotAdmitted), null),
   })
 }

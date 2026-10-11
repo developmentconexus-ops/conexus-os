@@ -227,7 +227,7 @@ const prepare = async (run: Run): Promise<Prepared> => {
     ...(runOperation ? { runOperation } : {}),
     gate,
   }
-  const session = await ports.openSession({ projectId, conversationId, builderRunId, bindContext: bindContextFor(turnStart.conflicted) })
+  const session = await ports.openSession({ projectId, conversationId, builderRunId, bindContext: bindContextFor(turnStart.conflicted) }).catch(runNotAdmitted)
   run.timing.mark('session')
   return { gate, gatePhases: gatePhases.settled, session, vm, tools, pulled }
 }
