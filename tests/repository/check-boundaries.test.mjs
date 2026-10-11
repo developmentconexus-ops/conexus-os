@@ -227,7 +227,7 @@ test('a name that only contains a retired word, and a command that only looks li
   assert.deepEqual(fixture('obsolete-lookalikes', { obsoleteScope: () => true }).obsoleteRuntimeSymbols, [])
 })
 
-test('only the Hub sources are scanned for obsolete symbols, and the application runner may switch roles in its own cluster', () => {
+test('only the Hub sources are scanned for obsolete symbols, and only the data plane of the application runner may switch roles in its own cluster', () => {
   const directory = mkdtempSync(resolve(tmpdir(), 'boundaries-obsolete-'))
   try {
     const write = (path, text) => {
@@ -238,11 +238,13 @@ test('only the Hub sources are scanned for obsolete symbols, and the application
     const rootNames = [
       write('apps/hub/src/identity-access/x.ts', 'export const q = "SET ROLE a; RESET ROLE; SELECT current_setting(\'a\')"'),
       write('apps/hub/src/app-runner/data-plane.ts', 'export const q = "SET ROLE a; RESET ROLE; SELECT current_setting(\'a\')"'),
+      write('apps/hub/src/app-runner/worker.ts', 'export const q = "SET ROLE a"'),
       write('apps/web/src/y.ts', 'export const q = "SET ROLE a"'),
     ]
     const program = ts.createProgram({ rootNames, options: { noEmit: true, skipLibCheck: true, types: [] } })
     assert.deepEqual(findings(program, { root: directory, pgEdge: [], responseEdge: [] }).obsoleteRuntimeSymbols.sort(), [
       'apps/hub/src/app-runner/data-plane.ts: current_setting(',
+      'apps/hub/src/app-runner/worker.ts: set role',
       'apps/hub/src/identity-access/x.ts: current_setting(',
       'apps/hub/src/identity-access/x.ts: reset role',
       'apps/hub/src/identity-access/x.ts: set role',

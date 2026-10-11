@@ -77,10 +77,10 @@ const isResponseJson = (symbol) => ['Response', 'Body'].includes(parentName(symb
 
 // What the split wall left behind: the retired roles, the row security helpers and the session settings that carried the actor.
 const OBSOLETE_RUNTIME_SYMBOLS = /\b(?:hub_reader|hub_command|iam_rls|hub_builder_ingress)\b|\brls\.|conexus\.(?:account_id|job)\b|\b(?:set_config|current_setting)\s*\(/gi
-// A role switch is also a retired way to act as someone. The application runner's provisioner switches roles in the Applications cluster, which has no Hub roles.
+// A role switch is also a retired way to act as someone. Only the application runner's data plane switches roles, in the Applications cluster, which has no Hub roles.
 const ROLE_SWITCH = /\b(?:set|reset)\s+(?:(?:local|session)\s+)?role\b/gi
 const hubSource = (path) => path.startsWith('apps/hub/src/')
-const OBSOLETE_SYMBOLS = (path) => (path.startsWith('apps/hub/src/app-runner/') ? [OBSOLETE_RUNTIME_SYMBOLS] : [OBSOLETE_RUNTIME_SYMBOLS, ROLE_SWITCH])
+const OBSOLETE_SYMBOLS = (path) => (path === 'apps/hub/src/app-runner/data-plane.ts' ? [OBSOLETE_RUNTIME_SYMBOLS] : [OBSOLETE_RUNTIME_SYMBOLS, ROLE_SWITCH])
 
 const SQL_DECLARATION = /apps\/hub\/src\/platform\/db\.ts$/
 // Admission reads preserve cross-owner authorization; Registry pointers and retention await their named waves.
