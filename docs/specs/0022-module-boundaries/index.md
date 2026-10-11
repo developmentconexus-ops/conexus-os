@@ -2,7 +2,7 @@
 
 **Date**: 2026-10-09
 **Status**: Approved by the operator on 2026-10-11, commit e0353c3608651ad3573dc921fd8230cb318eb543
-**Reservation**: This is the operator's first approval of this spec. The acceptance of 2026-10-09 was technical and the manager's, under the authority given that day. No product behavior changes. The owner list is today's and changes when apps or the login move.
+**Reservation**: This is the operator's first approval of this spec. The acceptance of 2026-10-09 was technical and the manager's, under the authority given that day. No product behavior changes. The owner list is today's and changes when apps leave the server or the login moves.
 **Lane**: lane:qualification, Q-b module boundaries
 **Execution branch**: `feat/conexus-module-boundaries`
 **Integration base**: `wave/company-model-accounts-spec`

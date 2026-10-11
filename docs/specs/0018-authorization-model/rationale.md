@@ -52,7 +52,7 @@ The recommendation rechecks current Account/membership for new executor work and
 
 ### Checks: retain useful owners, extend cheaply, or build an analyzer
 
-An inventory cannot prove arbitrary SQL isolation. A new general call graph/SQL analyzer also cannot soundly infer dynamic SQL and would become a separate product. Deleting checks loses regression evidence. The selected approach reuses census-boundaries, catalog checks, the compiler and existing suites, adding a few representative cases and cheap boundary extensions. The operator explicitly removed an exhaustive operation/route matrix, foreign-byte sweep, admission/filter mutants and extra session/stream race barriers as completion gates.
+An inventory cannot prove arbitrary SQL isolation. A new general call graph/SQL analyzer also cannot soundly infer dynamic SQL and would become a separate product. Deleting checks loses regression evidence. The selected approach reuses census-boundaries (now `scripts/check-boundaries.mjs`), catalog checks, the compiler and existing suites, adding a few representative cases and cheap boundary extensions. The operator explicitly removed an exhaustive operation/route matrix, foreign-byte sweep, admission/filter mutants and extra session/stream race barriers as completion gates.
 
 ## Decision and why
 

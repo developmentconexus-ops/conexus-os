@@ -213,7 +213,7 @@ apps/hub/src/builder/conversation.ts
 apps/hub/src/builder/conversations.ts
 apps/hub/src/builder/run-reads.ts
 apps/hub/src/builder/preview-state.ts
-apps/hub/src/builder/model-account/accounts.ts
+apps/hub/src/builder/model-account/accounts.ts (deleted since; apps/hub/src/model-account/store.ts holds the account reads and writes)
 apps/hub/src/builder/run-lifecycle.ts
 apps/hub/src/builder/module.ts
 apps/hub/src/builder/routes.ts
@@ -357,7 +357,7 @@ Builders read their card, its cited Design sections, the census/inventory and th
 - **Already there**: U1-U6; all target behaviors and guide edits landed; current types/consumers are the owner. Read Requirements, Deletes/census, bounded inventory and Representative proof.
 - **Creates**: Only final adjustments to existing boundary/catalog checks and CI wiring needed for the changed target, and the qualification evidence on the same wave head. Record census targets and representative results; no second checker/framework.
 - **Satisfies**: AC-9 and confirms AC-1-8 complete on this head.
-- **Files**: Existing scripts/{check-boundaries,check-import-law}.mjs, the check wiring in package.json (scripts/conexus-verify.mjs when the unit was built, deleted since) and existing record/config/tests where needed; deletes docs/specs/0018-authorization-model/shape/. Documents already changed by owning units need only fact corrections identified by the final check.
+- **Files**: Existing scripts/{census-boundaries,check-import-law,conexus-verify}.mjs (the first is now `scripts/check-boundaries.mjs`; the last was deleted since, and `package.json` wires the checks) and existing record/config/tests where needed; deletes docs/specs/0018-authorization-model/shape/. Documents already changed by owning units need only fact corrections identified by the final check.
 - **Copies**: Existing verification graph, actual catalog and compiler checks, T/L qualification flow.
 - **Guide sections**: C §10/11, T proof, L waves/same-head gates; no new guide policy.
 - **Deletes**: shape/, remaining obsolete imports/test assertions only after their real consumers are moved. Keep historical migrations/hash records; no history rewrite.
