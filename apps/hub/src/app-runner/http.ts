@@ -1,3 +1,4 @@
+import type { ProjectId } from '@conexus/contract'
 import Fastify, { type FastifyInstance } from 'fastify'
 import { SpanStatusCode, trace } from '@opentelemetry/api'
 import { Failure } from '../platform/failure.js'
@@ -5,14 +6,14 @@ import { failureFromFastify } from '../http/fastify-failure.js'
 import { logger } from '../platform/logger.js'
 import type { EventLog } from '../platform/logger.js'
 import { currentTraceReference, failureResponse, sendFailureResponse } from '../http/problem.js'
-import { invokeBody, prepareBody, releaseBody } from './requests.js'
+import { invokeBody, preparePreviewBody, disposePreviewBody } from './requests.js'
 import type { InvokeInput, OnDivergence, ServerFile } from './supervisor.js'
 import type { InvokeAnswer, PrepareAnswer } from './server-manifest.js'
 
 export type ApplicationRunnerSupervisor = Readonly<{
-  prepare(input: Readonly<{ projectId: string; files: readonly ServerFile[]; onDivergence: OnDivergence }>): Promise<PrepareAnswer>
+  preparePreview(input: Readonly<{ projectId: ProjectId; files: readonly ServerFile[]; onDivergence: OnDivergence }>): Promise<PrepareAnswer>
   invoke(input: InvokeInput): Promise<InvokeAnswer>
-  release(input: Readonly<{ projectId: string }>): Promise<void>
+  disposePreview(input: Readonly<{ projectId: ProjectId }>): Promise<void>
 }>
 
 function recordRunnerException(failure: Failure): void {
@@ -33,10 +34,10 @@ export function createApplicationRunnerApp(input: Readonly<{
     return sendFailureResponse(reply, failureResponse({ code: failure.id, traceId: currentTraceReference() }))
   })
   app.get('/v1/health', async () => ({ ok: true }))
-  app.post('/v1/prepare', async (request, reply) => {
-    const body = prepareBody.safeParse(request.body)
+  app.post('/v1/prepare-preview', async (request, reply) => {
+    const body = preparePreviewBody.safeParse(request.body)
     if (!body.success) throw new Failure('RUNNER_REQUEST_REFUSED')
-    return reply.type('application/json').code(200).send(await input.supervisor.prepare(body.data))
+    return reply.type('application/json').code(200).send(await input.supervisor.preparePreview(body.data))
   })
   app.post('/v1/invoke', async (request, reply) => {
     const body = invokeBody.safeParse(request.body)
@@ -57,10 +58,10 @@ export function createApplicationRunnerApp(input: Readonly<{
     })
     return reply.type('application/json').code(200).send(answer)
   })
-  app.post('/v1/release', async (request, reply) => {
-    const body = releaseBody.safeParse(request.body)
+  app.post('/v1/dispose-preview', async (request, reply) => {
+    const body = disposePreviewBody.safeParse(request.body)
     if (!body.success) throw new Failure('RUNNER_REQUEST_REFUSED')
-    await input.supervisor.release(body.data)
+    await input.supervisor.disposePreview(body.data)
     return reply.code(200).send({ ok: true })
   })
   return app

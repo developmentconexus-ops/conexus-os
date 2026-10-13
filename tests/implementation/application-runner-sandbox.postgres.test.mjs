@@ -1,3 +1,5 @@
+import { waitUntilBlocked } from './race.mjs'
+const { allocate } = await import(hubModuleUrl('app-runner/allocation.js'))
 import { invariant } from './failure-matchers.mjs'
 import assert from 'node:assert/strict'
 import { createHash, randomBytes, randomUUID } from 'node:crypto'
@@ -25,7 +27,6 @@ const { createSupervisor } = await import(hubModuleUrl('app-runner/supervisor.js
 const { assertUserNamespaces, runWorker, stageWorkerRuntime } = await import(hubModuleUrl('app-runner/sandbox.js'))
 const SANDBOX = { bwrap: '/usr/bin/bwrap', prlimit: '/usr/bin/prlimit', node: process.execPath, heapMb: 128, addressSpaceMb: 1792, nodePermission: true }
 const { openPgRelay, readRelayTls } = await import(hubModuleUrl('app-runner/pg-relay.js'))
-const { previewAllocation } = await import(hubModuleUrl('app-runner/data-plane.js'))
 const { createBroker, registryOf } = await import(hubModuleUrl('connectors/broker.js'))
 const { createHandlerPorts } = await import(hubModuleUrl('connectors/handler-port.js'))
 const { createSankhyaGateway } = await import(hubModuleUrl('connectors/sankhya/gateway.js'))
@@ -129,23 +130,23 @@ const setup = async (t, sandbox, { connectorSocketDir } = {}) => {
     const superuser = new pg.Client({ ...admin, database: 'postgres' })
     await superuser.connect()
     await superuser.query(`DROP DATABASE IF EXISTS ${database} WITH (FORCE)`)
-    for (const allocation of projects.map(previewAllocation)) {
+    for (const allocation of projects.flatMap((projectId) => [allocate({ projectId, kind: 'PREVIEW' }), allocate({ projectId, kind: 'PUBLISHED' })])) {
       await superuser.query(`DROP ROLE IF EXISTS ${allocation.runtimeRole}`)
       await superuser.query(`DROP ROLE IF EXISTS ${allocation.migrationRole}`)
     }
     await superuser.end()
   })
-  return { admin, database, supervisor, projects, stateDir }
+  return { admin, database, supervisor, projects, stateDir, provisionerPassword }
 }
 
 test('the runner migrates and serves each Project through its own sandboxed worker', async (t) => {
   const { admin, database, supervisor, projects: [a, b] } = await setup(t)
   const files = serverTree([['001_follow_up_note.sql', NOTE_SQL]])
-  const invoke = (projectId, operation, input = {}) => supervisor.invoke({ projectId, operation, input, files, caller: CALLER })
+  const invoke = (projectId, operation, input = {}) => supervisor.invoke({ kind: 'PREVIEW', projectId, operation, input, files, caller: CALLER })
 
-  assert.deepEqual(await supervisor.prepare({ projectId: a, files, onDivergence: RESET }), { ok: true, result: { reset: false, applied: ['001_follow_up_note.sql'] } })
-  assert.deepEqual(await supervisor.prepare({ projectId: a, files, onDivergence: RESET }), { ok: true, result: { reset: false, applied: [] } })
-  assert.deepEqual(await supervisor.prepare({ projectId: b, files, onDivergence: RESET }), { ok: true, result: { reset: false, applied: ['001_follow_up_note.sql'] } })
+  assert.deepEqual(await supervisor.preparePreview({ projectId: a, files, onDivergence: RESET }), { ok: true, result: { reset: false, applied: ['001_follow_up_note.sql'] } })
+  assert.deepEqual(await supervisor.preparePreview({ projectId: a, files, onDivergence: RESET }), { ok: true, result: { reset: false, applied: [] } })
+  assert.deepEqual(await supervisor.preparePreview({ projectId: b, files, onDivergence: RESET }), { ok: true, result: { reset: false, applied: ['001_follow_up_note.sql'] } })
 
   const createdAnswer = await invoke(a, 'createNote', { purchaseOrderId: 'PO-7', note: 'ligar para o fornecedor' })
   assert.equal(createdAnswer.ok, true)
@@ -174,7 +175,7 @@ test('the runner migrates and serves each Project through its own sandboxed work
     await superuser.connect()
     let active = 1
     for (let attempt = 0; attempt < 20 && active > 0; attempt += 1) {
-      active = (await superuser.query("SELECT count(*)::int AS n FROM pg_stat_activity WHERE usename = $1 AND query LIKE '%pg_sleep%' AND state = 'active'", [previewAllocation(a).runtimeRole])).rows[0].n
+      active = (await superuser.query("SELECT count(*)::int AS n FROM pg_stat_activity WHERE usename = $1 AND query LIKE '%pg_sleep%' AND state = 'active'", [allocate({ projectId: a, kind: 'PREVIEW' }).runtimeRole])).rows[0].n
       if (active > 0) await new Promise((resolve) => setTimeout(resolve, 100))
     }
     await superuser.end()
@@ -204,7 +205,7 @@ test('the runner migrates and serves each Project through its own sandboxed work
 
   await t.test('a failing migration applies nothing and names the error', async () => {
     const broken = serverTree([['001_follow_up_note.sql', NOTE_SQL], ['002_broken.sql', 'ALTER TABLE follow_up_note ADD COLUMN done boolean; SELECT * FROM missing_table']])
-    const result = await supervisor.prepare({ projectId: a, files: broken, onDivergence: RESET })
+    const result = await supervisor.preparePreview({ projectId: a, files: broken, onDivergence: RESET })
     assert.equal(result.ok, false)
     assert.deepEqual(result.error, { code: 'APPLICATION_MIGRATION_FAILED', migration: '002_broken.sql', sqlstate: '42P01' })
     assert.equal((await invoke(a, 'listNotes', { purchaseOrderId: 'PO-7' })).result.length, 1)
@@ -213,7 +214,7 @@ test('the runner migrates and serves each Project through its own sandboxed work
   await t.test('the relay authenticates upstream itself and admits only the pinned identity', async () => {
     const socketDir = mkdtempSync(join(tmpdir(), 'conexus-relay-'))
     t.after(() => rmSync(socketDir, { recursive: true, force: true }))
-    const runtimeRole = previewAllocation(a).runtimeRole
+    const runtimeRole = allocate({ projectId: a, kind: 'PREVIEW' }).runtimeRole
     const relay = await openPgRelay({ socketPath: join(socketDir, '.s.PGSQL.5432'), upstream: { host: admin.host, port: admin.port }, pin: { user: runtimeRole, database }, tls: relayTls(), maxSessions: 2 })
     // The client sends no credential at all; the relay logs in upstream with the runner certificate.
     const login = (user, target) => {
@@ -221,8 +222,8 @@ test('the runner migrates and serves each Project through its own sandboxed work
       return client.connect().then(() => client.query('SELECT current_user AS who').then((result) => { client.end(); return result.rows[0].who }), (error) => error.message)
     }
     assert.equal(await login(runtimeRole, database), runtimeRole)
-    assert.equal(await login(previewAllocation(b).runtimeRole, database), 'conexus: session refused')
-    assert.equal(await login(previewAllocation(a).migrationRole, database), 'conexus: session refused')
+    assert.equal(await login(allocate({ projectId: b, kind: 'PREVIEW' }).runtimeRole, database), 'conexus: session refused')
+    assert.equal(await login(allocate({ projectId: a, kind: 'PREVIEW' }).migrationRole, database), 'conexus: session refused')
     assert.equal(await login(runtimeRole, 'postgres'), 'conexus: session refused')
     assert.deepEqual(relay.refused(), ['IDENTITY', 'IDENTITY', 'IDENTITY'])
     // A password the client offers is ignored: the relay never asks for one and still admits it.
@@ -233,8 +234,8 @@ test('the runner migrates and serves each Project through its own sandboxed work
 
   await t.test('the runner does not serve while a routine language is usable by PUBLIC or a Project role', async () => {
     const converged = [a, b].sort()
-    assert.deepEqual([...await supervisor.checkProvisioner()], converged)
-    const migrationB = previewAllocation(b).migrationRole
+    assert.deepEqual((await supervisor.checkProvisioner()).map((allocation) => allocation.projectId), converged)
+    const migrationB = allocate({ projectId: b, kind: 'PREVIEW' }).migrationRole
     const superuser = new pg.Client({ ...admin, database })
     await superuser.connect()
     try {
@@ -247,14 +248,14 @@ test('the runner migrates and serves each Project through its own sandboxed work
       await superuser.query(`REVOKE USAGE ON LANGUAGE sql FROM ${migrationB}`)
       await superuser.end()
     }
-    assert.deepEqual([...await supervisor.checkProvisioner()], converged)
+    assert.deepEqual((await supervisor.checkProvisioner()).map((allocation) => allocation.projectId), converged)
   })
 
   await t.test('a migration cannot give the runtime role more than DML, directly or through PUBLIC', async (st) => {
-    const runtimeB = previewAllocation(b).runtimeRole
+    const runtimeB = allocate({ projectId: b, kind: 'PREVIEW' }).runtimeRole
     const extra = 'TRUNCATE, TRIGGER, REFERENCES, MAINTAIN'
     const granting = serverTree([['001_follow_up_note.sql', NOTE_SQL], ['002_grant_more.sql', `GRANT ${extra} ON follow_up_note TO ${runtimeB}; GRANT ALL ON follow_up_note TO PUBLIC`]])
-    assert.deepEqual(await supervisor.prepare({ projectId: b, files: granting, onDivergence: RESET }), { ok: true, result: { reset: false, applied: ['002_grant_more.sql'] } })
+    assert.deepEqual(await supervisor.preparePreview({ projectId: b, files: granting, onDivergence: RESET }), { ok: true, result: { reset: false, applied: ['002_grant_more.sql'] } })
     const runtime = await loginThroughRelay(st, { host: admin.host, port: admin.port }, runtimeB, database)
     const attempt = (sql) => runtime.query(sql).then(() => 'ok', (error) => error.code)
     assert.deepEqual({
@@ -265,7 +266,7 @@ test('the runner migrates and serves each Project through its own sandboxed work
   })
 
   await t.test('an edited applied migration is refused without erasing data unless reset is permitted', async () => {
-    const schema = previewAllocation(a).schema
+    const schema = allocate({ projectId: a, kind: 'PREVIEW' }).schema
     const superuser = new pg.Client({ ...admin, database })
     await superuser.connect()
     const state = async () => ({
@@ -276,18 +277,18 @@ test('the runner migrates and serves each Project through its own sandboxed work
       const before = await state()
       assert.deepEqual(before.notes, ['ligar para o fornecedor'])
       const edited = serverTree([['001_follow_up_note.sql', `${NOTE_SQL}\n-- editada depois de aplicada`]])
-      const refused = await supervisor.prepare({ projectId: a, files: edited, onDivergence: 'REFUSE' })
+      const refused = await supervisor.preparePreview({ projectId: a, files: edited, onDivergence: 'REFUSE' })
       assert.deepEqual(refused, { ok: false, error: { code: 'APPLICATION_MIGRATION_HISTORY_DIVERGED', migration: '001_follow_up_note.sql' } })
       assert.deepEqual(await state(), before)
 
-      const removed = await supervisor.prepare({ projectId: a, files: serverTree([['002_other.sql', 'SELECT 1']]), onDivergence: 'REFUSE' })
+      const removed = await supervisor.preparePreview({ projectId: a, files: serverTree([['002_other.sql', 'SELECT 1']]), onDivergence: 'REFUSE' })
       assert.deepEqual(removed, { ok: false, error: { code: 'APPLICATION_MIGRATION_HISTORY_DIVERGED', migration: '001_follow_up_note.sql' } })
       assert.deepEqual(await state(), before)
 
-      await assert.rejects(supervisor.prepare({ projectId: a, files: edited, onDivergence: { resetBefore: Date.now() - 1 } }), invariant('PREVIEW_RESET_EXPIRED'))
+      await assert.rejects(supervisor.preparePreview({ projectId: a, files: edited, onDivergence: { resetBefore: Date.now() - 1 } }), invariant('PREVIEW_RESET_EXPIRED'))
       assert.deepEqual(await state(), before)
 
-      assert.deepEqual(await supervisor.prepare({ projectId: a, files: edited, onDivergence: RESET }), { ok: true, result: { reset: true, applied: ['001_follow_up_note.sql'] } })
+      assert.deepEqual(await supervisor.preparePreview({ projectId: a, files: edited, onDivergence: RESET }), { ok: true, result: { reset: true, applied: ['001_follow_up_note.sql'] } })
       assert.deepEqual((await state()).notes, [])
     } finally {
       await superuser.end()
@@ -297,14 +298,14 @@ test('the runner migrates and serves each Project through its own sandboxed work
 
 test('migration admission and atomic execution compose through the confined worker and relay', async (t) => {
   const { admin, database, supervisor, projects: [a, b], stateDir } = await setup(t)
-  const allocation = previewAllocation(a)
-  const other = previewAllocation(b)
+  const allocation = allocate({ projectId: a, kind: 'PREVIEW' })
+  const other = allocate({ projectId: b, kind: 'PREVIEW' })
   const inspector = new pg.Client({ ...admin, database })
   await inspector.connect()
   try {
     const files = serverTree([['001_follow_up_note.sql', NOTE_SQL]])
-    assert.deepEqual(await supervisor.prepare({ projectId: a, files, onDivergence: 'REFUSE' }), { ok: true, result: { reset: false, applied: ['001_follow_up_note.sql'] } })
-    assert.equal((await supervisor.invoke({ projectId: a, files, operation: 'createNote', input: { purchaseOrderId: 'PO-1', note: 'preserved' }, caller: CALLER })).ok, true)
+    assert.deepEqual(await supervisor.preparePreview({ projectId: a, files, onDivergence: 'REFUSE' }), { ok: true, result: { reset: false, applied: ['001_follow_up_note.sql'] } })
+    assert.equal((await supervisor.invoke({ kind: 'PREVIEW', projectId: a, files, operation: 'createNote', input: { purchaseOrderId: 'PO-1', note: 'preserved' }, caller: CALLER })).ok, true)
     const state = async () => ({
       oid: (await inspector.query('SELECT to_regclass($1)::oid AS oid', [`${allocation.schema}.follow_up_note`])).rows[0].oid,
       notes: (await inspector.query(`SELECT note FROM "${allocation.schema}".follow_up_note ORDER BY id`)).rows,
@@ -316,7 +317,7 @@ test('migration admission and atomic execution compose through the confined work
     await t.test('an invalid edited-history candidate preserves data and OID under both reset modes', async () => {
       for (const sql of [`${NOTE_SQL}; COMMIT`, `${NOTE_SQL}; SELEC broken`, `${NOTE_SQL}\0; COMMIT`]) {
         for (const onDivergence of ['REFUSE', RESET]) {
-          assert.deepEqual(await supervisor.prepare({ projectId: a, files: serverTree([['001_follow_up_note.sql', sql]]), onDivergence }), {
+          assert.deepEqual(await supervisor.preparePreview({ projectId: a, files: serverTree([['001_follow_up_note.sql', sql]]), onDivergence }), {
             ok: false, error: { code: 'APPLICATION_MIGRATION_FAILED', migration: '001_follow_up_note.sql', sqlstate: null },
           })
           assert.deepEqual(await state(), before)
@@ -326,7 +327,7 @@ test('migration admission and atomic execution compose through the confined work
 
     await t.test('a forbidden later file refuses before creating a new allocation or executing the prefix', async () => {
       const forbidden = serverTree([['001_table.sql', 'CREATE TABLE escaped(i int)'], ['002_control.sql', 'END WORK']])
-      assert.deepEqual(await supervisor.prepare({ projectId: b, files: forbidden, onDivergence: RESET }), {
+      assert.deepEqual(await supervisor.preparePreview({ projectId: b, files: forbidden, onDivergence: RESET }), {
         ok: false, error: { code: 'APPLICATION_MIGRATION_FAILED', migration: '002_control.sql', sqlstate: null },
       })
       assert.deepEqual((await inspector.query('SELECT to_regnamespace($1)::text AS schema, EXISTS(SELECT 1 FROM pg_roles WHERE rolname = $2 OR rolname = $3) AS roles', [other.schema, other.migrationRole, other.runtimeRole])).rows, [{ schema: null, roles: false }])
@@ -361,7 +362,7 @@ test('migration admission and atomic execution compose through the confined work
       ]) {
         const additions = scripts.map((sql, i) => [`00${i + 2}_lexical.sql`, sql])
         const broken = serverTree([['001_follow_up_note.sql', NOTE_SQL], ...additions, ['004_runtime.sql', 'SELECT 1/0']])
-        assert.deepEqual(await supervisor.prepare({ projectId: a, files: broken, onDivergence: 'REFUSE' }), {
+        assert.deepEqual(await supervisor.preparePreview({ projectId: a, files: broken, onDivergence: 'REFUSE' }), {
           ok: false, error: { code: 'APPLICATION_MIGRATION_FAILED', migration: '004_runtime.sql', sqlstate: '22012' },
         })
         assert.deepEqual(await state(), before)
@@ -372,8 +373,8 @@ test('migration admission and atomic execution compose through the confined work
       const ordinary = `/* outer /* COMMIT */ END */ CREATE TABLE escaped(id bigint GENERATED ALWAYS AS IDENTITY, note text DEFAULT $$ROLLBACK;$$);
         CREATE INDEX ON escaped(id); INSERT INTO escaped(note) VALUES ('COMMIT;'); CREATE VIEW escaped_view AS SELECT * FROM escaped;`
       const corrected = serverTree([['001_follow_up_note.sql', NOTE_SQL], ['002_ordinary.sql', ordinary]])
-      assert.deepEqual(await supervisor.prepare({ projectId: a, files: corrected, onDivergence: 'REFUSE' }), { ok: true, result: { reset: false, applied: ['002_ordinary.sql'] } })
-      assert.deepEqual(await supervisor.prepare({ projectId: a, files: corrected, onDivergence: 'REFUSE' }), { ok: true, result: { reset: false, applied: [] } })
+      assert.deepEqual(await supervisor.preparePreview({ projectId: a, files: corrected, onDivergence: 'REFUSE' }), { ok: true, result: { reset: false, applied: ['002_ordinary.sql'] } })
+      assert.deepEqual(await supervisor.preparePreview({ projectId: a, files: corrected, onDivergence: 'REFUSE' }), { ok: true, result: { reset: false, applied: [] } })
       assert.deepEqual((await inspector.query(`SELECT note FROM "${allocation.schema}".escaped_view`)).rows, [{ note: 'COMMIT;' }])
       assert.deepEqual((await state()).ledger, [...before.ledger, { position: 2, name: '002_ordinary.sql', sha256: sha(ordinary) }])
     })
@@ -388,7 +389,7 @@ test('migration admission and atomic execution compose through the confined work
       const candidate = serverTree(migrations)
       const manifestBytes = Buffer.from(candidate[0].content, 'base64').byteLength
       assert.equal(manifestBytes <= 4 * 1024 * 1024, true)
-      assert.deepEqual(await supervisor.prepare({ projectId: b, files: candidate, onDivergence: 'REFUSE' }), { ok: true, result: { reset: false, applied: migrations.map(([name]) => name) } })
+      assert.deepEqual(await supervisor.preparePreview({ projectId: b, files: candidate, onDivergence: 'REFUSE' }), { ok: true, result: { reset: false, applied: migrations.map(([name]) => name) } })
       assert.deepEqual((await inspector.query(`SELECT count(*)::int AS n FROM "${other.schema}".conexus_migration`)).rows, [{ n: 64 }])
       t.diagnostic(`64 migration files, maximum file 262144 characters, manifest ${manifestBytes} bytes, default worker limits unchanged`)
     })
@@ -425,8 +426,8 @@ test('the runner prepares and serves exactly what the Project check built, every
   const chunks = files.filter((entry) => entry.path.startsWith('conexus-server/chunks/')).map((entry) => Buffer.from(entry.content, 'base64').toString('utf8')).join('\n')
   for (const name of SUPPORTED_NODE_IMPORTS) assert.match(chunks, new RegExp(`from "${name}"|import "${name}"`), `the shared chunk imports ${name}`)
   const { supervisor, projects: [project] } = await setup(t)
-  assert.deepEqual(await supervisor.prepare({ projectId: project, files }), { ok: true, result: { reset: false, applied: [] } })
-  const invoke = (operation, input) => supervisor.invoke({ projectId: project, operation, input, files, caller: CALLER })
+  assert.deepEqual(await supervisor.preparePreview({ projectId: project, files }), { ok: true, result: { reset: false, applied: [] } })
+  const invoke = (operation, input) => supervisor.invoke({ kind: 'PREVIEW', projectId: project, operation, input, files, caller: CALLER })
   assert.deepEqual(await invoke('doubleValue', { value: 1.234 }), { ok: true, result: { value: 2.47 } })
   assert.deepEqual(await invoke('tripleValue', { value: 2 }), { ok: true, result: { value: 6 } })
 })
@@ -436,9 +437,9 @@ test('the runner prepares and serves exactly what the Project check built, every
 test('with the Node permission layer off, the namespaces alone hide host files, processes and network', async (t) => {
   const { admin, supervisor, projects: [project], stateDir } = await setup(t, { ...SANDBOX, nodePermission: false })
   const files = probeServerTree()
-  assert.deepEqual(await supervisor.prepare({ projectId: project, files, onDivergence: RESET }), { ok: true, result: { reset: false, applied: [] } })
+  assert.deepEqual(await supervisor.preparePreview({ projectId: project, files, onDivergence: RESET }), { ok: true, result: { reset: false, applied: [] } })
   const run = async (name, input) => {
-    const answer = await supervisor.invoke({ projectId: project, operation: probeOperations[name], input, files, caller: CALLER })
+    const answer = await supervisor.invoke({ kind: 'PREVIEW', projectId: project, operation: probeOperations[name], input, files, caller: CALLER })
     assert.equal(answer.ok, true, JSON.stringify(answer))
     return JSON.parse(answer.result.text)
   }
@@ -483,19 +484,19 @@ test('the runner refuses to start where the sandbox cannot be built', () => {
 })
 
 test('the runner socket admits a prepare only when the Hub says whether a divergent history may reset', async () => {
-  const { prepareBody } = await import(hubModuleUrl('app-runner/requests.js'))
+  const { preparePreviewBody } = await import(hubModuleUrl('app-runner/requests.js'))
   const body = { projectId: randomUUID(), files: serverTree([]), onDivergence: 'REFUSE' }
-  assert.equal(prepareBody.safeParse(body).success, true)
-  assert.equal(prepareBody.safeParse({ ...body, onDivergence: { resetBefore: Date.now() + 60_000 } }).success, true)
+  assert.equal(preparePreviewBody.safeParse(body).success, true)
+  assert.equal(preparePreviewBody.safeParse({ ...body, onDivergence: { resetBefore: Date.now() + 60_000 } }).success, true)
   const { onDivergence: _omitted, ...withoutFlag } = body
   for (const refused of [withoutFlag, { ...body, onDivergence: 'RESET' }, { ...body, onDivergence: {} }, { ...body, onDivergence: { resetBefore: 'soon' } }, { ...body, onDivergence: null }]) {
-    assert.equal(prepareBody.safeParse(refused).success, false, JSON.stringify(refused.onDivergence))
+    assert.equal(preparePreviewBody.safeParse(refused).success, false, JSON.stringify(refused.onDivergence))
   }
 })
 
 test('the runner socket admits an invocation only with an exact platform caller beside the input', async () => {
   const { invokeBody } = await import(hubModuleUrl('app-runner/requests.js'))
-  const body = { projectId: randomUUID(), operation: 'whoAmI', input: {}, files: serverTree([]), caller: CALLER }
+  const body = { kind: 'PREVIEW', projectId: randomUUID(), operation: 'whoAmI', input: {}, files: serverTree([]), caller: CALLER }
   assert.deepEqual(invokeBody.parse(body).caller, { accountId: '55555555-5555-4555-8555-555555555555', email: 'funcionaria@example.com', displayName: 'Funcionária' })
   assert.equal(invokeBody.safeParse({ ...body, caller: { ...CALLER, email: null } }).success, true)
   const { caller: _omitted, ...withoutCaller } = body
@@ -585,8 +586,8 @@ const connectorSetup = async (t, sandbox) => {
     return port
   }
   const files = connectorTree()
-  assert.deepEqual(await runner.supervisor.prepare({ projectId: project, files, onDivergence: RESET }), { ok: true, result: { reset: false, applied: [] } })
-  const invoke = (operation, input, connectorSocket) => runner.supervisor.invoke({ projectId: project, operation, input, files, caller: CALLER, ...(connectorSocket ? { connectorSocket } : {}) })
+  assert.deepEqual(await runner.supervisor.preparePreview({ projectId: project, files, onDivergence: RESET }), { ok: true, result: { reset: false, applied: [] } })
+  const invoke = (operation, input, connectorSocket) => runner.supervisor.invoke({ kind: 'PREVIEW', projectId: project, operation, input, files, caller: CALLER, ...(connectorSocket ? { connectorSocket } : {}) })
   const port = Number(new URL(fake.origin).port)
   return { ...runner, socketDir, fake, open, invoke, project, otherProject, port }
 }
@@ -772,7 +773,7 @@ test('a handler that writes the first line of the result channel cannot choose t
   const handler = "import { writeSync } from 'node:fs'\nexport const leak = async () => { writeSync(3, '{\"ok\":false,\"code\":\"HANDLER_EXPORT_MISSING\",\"detail\":\"secret\"}\\n'); return {} }\n"
   const manifest = { version: 1, operations: { leak: { module: 'handlers/leak.mjs', export: 'leak', input: empty, output: empty } }, migrations: [] }
   const files = [file('manifest.json', JSON.stringify(manifest)), file('handlers/leak.mjs', handler)]
-  const reply = await supervisor.invoke({ projectId: randomUUID(), operation: 'leak', input: {}, files, caller: CALLER })
+  const reply = await supervisor.invoke({ kind: 'PREVIEW', projectId: randomUUID(), operation: 'leak', input: {}, files, caller: CALLER })
   assert.deepEqual(reply, { ok: false, error: { code: 'HANDLER_CRASHED', exitCode: 0, signal: null } })
 })
 
@@ -788,6 +789,79 @@ test('a handler that answers with an undeclared key named after a value gets no 
   const handler = 'export const smuggle = async () => ({ Maria_Silva_CPF_12345678900: 1 })\n'
   const manifest = { version: 1, operations: { smuggle: { module: 'handlers/smuggle.mjs', export: 'smuggle', input: empty, output: empty } }, migrations: [] }
   const files = [file('manifest.json', JSON.stringify(manifest)), file('handlers/smuggle.mjs', handler)]
-  const reply = await supervisor.invoke({ projectId: randomUUID(), operation: 'smuggle', input: {}, files, caller: CALLER })
+  const reply = await supervisor.invoke({ kind: 'PREVIEW', projectId: randomUUID(), operation: 'smuggle', input: {}, files, caller: CALLER })
   assert.deepEqual(reply, { ok: false, error: { code: 'HANDLER_OUTPUT_REFUSED', violation: { pointer: '/(key)', rule: 'not declared' } } })
+})
+
+test('the actual worker selects Preview17 or Published23, and Preview failure, reset and replay leave Published23 and its ledger unchanged', async (t) => {
+  const { admin, database, supervisor, projects: [projectId], provisionerPassword, stateDir } = await setup(t)
+  await t.test('explicit domain invocation and Preview-only preparation', async (st) => {
+    const { ensureAllocation, applyPendingMigrations, readLedger } = await import(hubModuleUrl('app-runner/data-plane.js'))
+    const published = allocate({ projectId, kind: 'PUBLISHED' })
+    const previewSql = 'CREATE TABLE value (n integer); INSERT INTO value VALUES (17)'
+    const publishedSql = 'CREATE TABLE value (n integer); INSERT INTO value VALUES (23)'
+    const migration = (name, sql) => ({ name, sql, sha256: sha(sql) })
+    const tree = (migrations) => [
+      file('manifest.json', JSON.stringify({ profile: 'fullstack-v1', operations: {
+        readValue: { module: 'handlers/value.mjs', export: 'readValue', input: { type: 'object', properties: {}, additionalProperties: false }, output: { type: 'integer' } },
+      }, migrations })),
+      file('handlers/value.mjs', "import pg from 'pg'; export async function readValue() { const client = new pg.Client(); await client.connect(); try { return (await client.query('SELECT n FROM value')).rows[0].n } finally { await client.end() } }"),
+    ]
+    const files = tree([migration('001_value.sql', previewSql)])
+    const provisioner = new pg.Client({ host: admin.host, port: admin.port, database, user: 'app_provisioner', password: provisionerPassword })
+    await provisioner.connect()
+    try {
+      await ensureAllocation(provisioner, { allocation: published, database })
+      assert.deepEqual(await readLedger(provisioner, published), [])
+      assert.equal((await provisioner.query('SELECT to_regclass($1) AS name', [`${published.schema}.value`])).rows[0].name, null)
+      const migrator = await loginThroughRelay(st, { host: admin.host, port: admin.port }, published.migrationRole, database)
+      assert.deepEqual(await applyPendingMigrations(migrator, published.schema, [{ ...migration('001_value.sql', publishedSql), position: 1 }]), { ok: true, result: undefined })
+      const ledger = await readLedger(provisioner, published)
+      assert.deepEqual(await supervisor.preparePreview({ projectId, files, onDivergence: RESET }), { ok: true, result: { reset: false, applied: ['001_value.sql'] } })
+      const invoke = (kind) => supervisor.invoke({ kind, projectId, files, operation: 'readValue', input: {}, caller: CALLER })
+      assert.deepEqual(await invoke('PREVIEW'), { ok: true, result: 17 })
+      assert.deepEqual(await invoke('PUBLISHED'), { ok: true, result: 23 })
+      const failed = await supervisor.preparePreview({ projectId, files: tree([migration('001_value.sql', previewSql), migration('002_first.sql', 'CREATE TABLE rolled_back (n integer)'), migration('003_failure.sql', 'SELECT 1 / 0')]), onDivergence: 'REFUSE' })
+      assert.deepEqual(failed, { ok: false, error: { code: 'APPLICATION_MIGRATION_FAILED', migration: '003_failure.sql', sqlstate: '22012' } })
+      assert.equal((await provisioner.query('SELECT to_regclass($1) AS name', [`${allocate({ projectId, kind: 'PREVIEW' }).schema}.rolled_back`])).rows[0].name, null)
+      const reset = tree([migration('001_value.sql', previewSql + '; SELECT 1')])
+      assert.deepEqual(await supervisor.preparePreview({ projectId, files: reset, onDivergence: RESET }), { ok: true, result: { reset: true, applied: ['001_value.sql'] } })
+      assert.deepEqual(await supervisor.preparePreview({ projectId, files: reset, onDivergence: 'REFUSE' }), { ok: true, result: { reset: false, applied: [] } })
+      assert.deepEqual(await invoke('PREVIEW'), { ok: true, result: 17 })
+      assert.deepEqual(await invoke('PUBLISHED'), { ok: true, result: 23 })
+      assert.deepEqual(await readLedger(provisioner, published), ledger)
+      const { createApplicationRunnerApp } = await import(hubModuleUrl('app-runner/http.js'))
+      const { createApplicationRunnerClient } = await import(hubModuleUrl('app-runner/module.js'))
+      const app = createApplicationRunnerApp({ supervisor, log: () => undefined })
+      const socketPath = join(stateDir, 'cancel.sock')
+      const holder = new pg.Client({ ...admin, database })
+      await holder.connect()
+      try {
+        await app.listen({ path: socketPath })
+        const client = createApplicationRunnerClient(socketPath)
+        await holder.query('SELECT pg_advisory_lock(523)')
+        const interrupted = tree([migration('001_value.sql', previewSql + '; SELECT 1'), migration('002_cancel.sql', 'CREATE TABLE cancelled (n integer); SELECT pg_advisory_xact_lock(523)')])
+        const controller = new AbortController()
+        const preparing = client.preparePreview({ projectId, files: interrupted, onDivergence: 'REFUSE', signal: controller.signal }).then(() => 'completed', (error) => error)
+        await waitUntilBlocked({ ...admin, database })
+        const reason = new Error('synthetic-caller-left')
+        controller.abort(reason)
+        assert.equal(await preparing, reason)
+        assert.deepEqual(await invoke('PUBLISHED'), { ok: true, result: 23 })
+        assert.deepEqual(await readLedger(provisioner, published), ledger)
+        await holder.query('SELECT pg_advisory_unlock(523)')
+        assert.deepEqual(await client.preparePreview({ projectId, files: interrupted, onDivergence: 'REFUSE' }), { ok: true, result: { reset: false, applied: [] } })
+        assert.deepEqual(await invoke('PUBLISHED'), { ok: true, result: 23 })
+        assert.deepEqual(await readLedger(provisioner, published), ledger)
+      } finally {
+        await holder.end()
+        await app.close()
+      }
+      await supervisor.disposePreview({ projectId })
+      assert.deepEqual(await invoke('PUBLISHED'), { ok: true, result: 23 })
+      assert.deepEqual(await readLedger(provisioner, published), ledger)
+    } finally {
+      await provisioner.end()
+    }
+  })
 })

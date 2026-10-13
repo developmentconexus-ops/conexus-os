@@ -1,21 +1,12 @@
 import type { PlannedMigration } from './wire.js'
-import type { Result } from '@conexus/contract'
+import { ProjectId, type Result } from '@conexus/contract'
 import { validateMigrationBatch } from './migration-sql.js'
 import type { MigrationFailure, MigrationSource } from './migration-sql.js'
+import { allocate } from './allocation.js'
+import type { Allocation, PreviewAllocation } from './allocation.js'
 /** A Postgres session the data plane issues statements on; pg's Client and PoolClient both fit. */
 export type Sql = Readonly<{
   query(text: string, values?: readonly unknown[]): Promise<{ rows: Record<string, unknown>[] }>
-}>
-
-/**
- * Where one Project's Preview data lives and who may touch it. Every name derives from the Project id
- * alone, so the platform never stores a mapping a handler could influence.
- */
-export type PreviewAllocation = Readonly<{
-  projectId: string
-  schema: string
-  runtimeRole: string
-  migrationRole: string
 }>
 
 export type LedgerRow = Readonly<{ position: number; name: string; sha256: string }>
@@ -23,24 +14,12 @@ export type MigrationPlan = Readonly<{ reset: boolean; pending: readonly Planned
 
 export const PROVISIONER_ROLE = 'app_provisioner'
 const LEDGER_TABLE = 'conexus_migration'
-const PROJECT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
-/** Every Project role name previewAllocation derives; pg_hba confines exactly these names. */
-export const PROJECT_ROLE_NAME = /^app_[0-9a-f]{32}_preview_(rt|mig)$/
+/** Every Project/domain role name the allocation owner derives; pg_hba confines exactly these names. */
+export const PROJECT_ROLE_NAME = /^app_[0-9a-f]{32}_(preview|published)_(rt|mig)$/
 const RUNTIME_CONNECTION_LIMIT = 8
 const MIGRATION_CONNECTION_LIMIT = 2
 const RUNTIME_TEMP_FILE_LIMIT = '256MB'
 const MIGRATION_TEMP_FILE_LIMIT = '1GB'
-
-export const previewAllocation = (projectId: string): PreviewAllocation => {
-  if (!PROJECT_ID.test(projectId)) throw new Error('the Project id is not a UUID')
-  const hex = projectId.replaceAll('-', '')
-  return Object.freeze({
-    projectId,
-    schema: `p_${hex}_preview`,
-    runtimeRole: `app_${hex}_preview_rt`,
-    migrationRole: `app_${hex}_preview_mig`,
-  })
-}
 
 const identifier = (value: string): string => {
   if (!/^[a-z_][a-z0-9_]{0,62}$/.test(value)) throw new Error('the SQL identifier is not one the data plane issues')
@@ -64,15 +43,15 @@ const ensureRole = async (provisioner: Sql, role: string, connectionLimit: numbe
 }
 
 /**
- * Creates or repairs one Project's Preview allocation. The provisioner owns the schema; the migration
+ * Creates or repairs one Project/domain allocation. The provisioner owns the schema; the migration
  * role may create objects in it but, not owning the schema, cannot grant USAGE on it, so a grant it
  * makes on its own tables reaches no other Project. The runtime role gets DML on what the migration
  * role creates, and restoreRuntimePrivileges takes back anything more a migration grants.
  */
-export const ensurePreviewAllocation = async (
+export async function ensureAllocation(
   provisioner: Sql,
-  input: Readonly<{ allocation: PreviewAllocation; database: string }>,
-): Promise<void> => {
+  input: Readonly<{ allocation: Allocation; database: string }>,
+): Promise<void> {
   const { allocation, database } = input
   const schema = identifier(allocation.schema)
   const runtime = identifier(allocation.runtimeRole)
@@ -130,7 +109,7 @@ export const ensurePreviewAllocation = async (
  * REFERENCES or MAINTAIN, or grant PUBLIC anything; the runner calls this after every migration.
  * Revoked as the owner with CASCADE, so grants the runtime role passed on go too.
  */
-export const restoreRuntimePrivileges = async (provisioner: Sql, allocation: PreviewAllocation): Promise<void> => {
+export async function restoreRuntimePrivileges(provisioner: Sql, allocation: Allocation): Promise<void> {
   const schema = identifier(allocation.schema)
   const runtime = identifier(allocation.runtimeRole)
   const { rows } = await provisioner.query(`SELECT format('%I.%I', n.nspname, c.relname) AS name, c.relkind = 'S' AS sequence
@@ -154,22 +133,24 @@ export const restoreRuntimePrivileges = async (provisioner: Sql, allocation: Pre
   }
 }
 
-const PREVIEW_SCHEMA = /^p_([0-9a-f]{32})_preview$/
+const ALLOCATION_SCHEMA = /^p_([0-9a-f]{32})_(preview|published)$/
 
-/**
- * Brings every Preview allocation in this database onto the current rules, including roles and
- * ledgers an earlier runner created (a role with a password, a ledger without its policy). Returns
- * the Project ids it converged.
- */
-export const convergePreviewAllocations = async (provisioner: Sql, database: string): Promise<readonly string[]> => {
-  const { rows } = await provisioner.query("SELECT nspname FROM pg_namespace WHERE nspname LIKE 'p\\_%\\_preview'")
-  const hexes = rows.map((row) => PREVIEW_SCHEMA.exec(String(row.nspname))?.[1]).filter((hex): hex is string => hex !== undefined)
-  const projectIds = hexes.sort().map((hex) => `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`)
-  for (const projectId of projectIds) await ensurePreviewAllocation(provisioner, { allocation: previewAllocation(projectId), database })
-  return projectIds
+export async function convergeAllocations(provisioner: Sql, database: string): Promise<readonly Allocation[]> {
+  const { rows } = await provisioner.query("SELECT nspname FROM pg_namespace WHERE nspname LIKE 'p\\_%' ORDER BY nspname")
+  const allocations: Allocation[] = []
+  for (const row of rows) {
+    const match = ALLOCATION_SCHEMA.exec(String(row.nspname))
+    const hex = match?.[1]
+    if (!hex) continue
+    const projectId = ProjectId.parse(`${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`)
+    const allocation = allocate({ projectId, kind: match?.[2] === 'preview' ? 'PREVIEW' : 'PUBLISHED' })
+    await ensureAllocation(provisioner, { allocation, database })
+    allocations.push(allocation)
+  }
+  return Object.freeze(allocations)
 }
 
-export const readLedger = async (provisioner: Sql, allocation: PreviewAllocation): Promise<readonly LedgerRow[]> => {
+export async function readLedger(provisioner: Sql, allocation: Allocation): Promise<readonly LedgerRow[]> {
   const { rows } = await provisioner.query(`SELECT position, name, sha256 FROM ${identifier(allocation.schema)}.${LEDGER_TABLE} ORDER BY position`)
   return rows.map((row) => Object.freeze({ position: Number(row.position), name: String(row.name), sha256: String(row.sha256) }))
 }
@@ -190,7 +171,7 @@ export const planMigrations = (ledger: readonly LedgerRow[], migrations: readonl
   })
 }
 
-export const resetPreviewSchema = async (provisioner: Sql, allocation: PreviewAllocation): Promise<void> => {
+export async function resetPreviewSchema(provisioner: Sql, allocation: PreviewAllocation): Promise<void> {
   await provisioner.query(`DROP SCHEMA IF EXISTS ${identifier(allocation.schema)} CASCADE`)
 }
 
@@ -199,7 +180,7 @@ export const resetPreviewSchema = async (provisioner: Sql, allocation: PreviewAl
  * id. Called once, when the Project itself is deleted, never as part of the ordinary migrate path.
  * Idempotent: a role or schema already gone is not an error.
  */
-export const releasePreviewAllocation = async (provisioner: Sql, allocation: PreviewAllocation): Promise<void> => {
+export async function disposePreviewAllocation(provisioner: Sql, allocation: PreviewAllocation): Promise<void> {
   await resetPreviewSchema(provisioner, allocation)
   for (const role of [allocation.migrationRole, allocation.runtimeRole]) {
     const { rows } = await provisioner.query('SELECT 1 FROM pg_roles WHERE rolname = $1', [role])

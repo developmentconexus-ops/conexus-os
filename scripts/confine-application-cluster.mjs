@@ -21,7 +21,7 @@ import { parseArgs } from 'node:util'
 // The names apps/hub/src/app-runner/data-plane.ts gives Project roles. Matched by name, not by a
 // group: pg_hba counts the provisioner's ADMIN membership in a group as membership, which would
 // confine the provisioner too.
-export const PROJECT_ROLE_PATTERN = '/^app_[0-9a-f]{32}_preview_(rt|mig)$'
+export const PROJECT_ROLE_PATTERN = '/^app_[0-9a-f]{32}_(preview|published)_(rt|mig)$'
 export const RELAY_CERTIFICATE_NAME = 'conexus-app-relay'
 const IDENT_MAP = 'conexus_app_relay'
 const BEGIN = '# conexus-application-roles begin'

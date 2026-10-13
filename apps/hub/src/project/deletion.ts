@@ -10,7 +10,7 @@ import { Failure } from '../platform/failure.js'
 
 export type ProjectDeletionPorts = Readonly<{
   hasOpenProjectRun: typeof builderProjectPorts.hasOpenProjectRun
-  releaseApplicationData(projectId: ProjectIdType, lost: AbortSignal): Promise<void>
+  disposePreviewData(projectId: ProjectIdType, lost: AbortSignal): Promise<void>
   killSandboxes(projectId: ProjectIdType, lost: AbortSignal): Promise<void>
   deleteRepository(projectId: ProjectIdType, lost: AbortSignal): Promise<void>
   /** Deletes the Project's sessions, handoffs, sign in states, application access and address in the purge transaction. */
@@ -85,7 +85,7 @@ export function createProjectDeletion({ database, ports }: Readonly<{ database: 
       const tombstone = await begin(input)
       if (tombstone.completed) return
       try {
-        for (const cleanup of [ports.releaseApplicationData, ports.killSandboxes, ports.deleteRepository]) {
+        for (const cleanup of [ports.disposePreviewData, ports.killSandboxes, ports.deleteRepository]) {
           if (lost.aborted) throw new Failure('PROJECT_DELETION_INCOMPLETE', { cause: lost.reason })
           await cleanup(input.projectId, lost)
         }

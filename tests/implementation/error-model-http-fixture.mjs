@@ -44,9 +44,9 @@ const runnerContexts = []
 const hubInvokeContexts = []
 const runner = createApplicationRunnerApp({
   supervisor: {
-    prepare: async () => { throw new Error('PRIVATE_RUNNER_CAUSE') },
+    preparePreview: async () => { throw new Error('PRIVATE_RUNNER_CAUSE') },
     invoke: async () => { throw new Error('PRIVATE_RUNNER_CAUSE') },
-    release: async () => { throw new Error('PRIVATE_RUNNER_CAUSE') },
+    disposePreview: async () => { throw new Error('PRIVATE_RUNNER_CAUSE') },
   },
   log: (event) => runnerLogs.push(event),
 })
@@ -56,24 +56,21 @@ const runnerClient = createApplicationRunnerClient(runnerSocket)
 const { createApplicationInvoker } = await import(build + '/hosting/application-invoker.js')
 const invokeFromHost = createApplicationInvoker({ invoke: runnerClient.invoke })
 const runnerInput = {
-  projectId: '11111111-1111-4111-8111-111111111111', operation: 'find', input: {},
+  projectId: '11111111-1111-4111-8111-111111111111', kind: 'PREVIEW', operation: 'find', input: {},
   files: [{ path: 'conexus-server/manifest.json', content: 'e30=', sha256: 'a'.repeat(64) }],
   caller: { accountId: '22222222-2222-4222-8222-222222222222', email: null, displayName: 'Synthetic' },
 }
 const { createHostingModule } = await import(build + '/hosting/module.js')
 const artifactRevisionId = '44444444-4444-4444-8444-444444444444'
 const hosting = createHostingModule({
-  sessions: {}, applicationRunner: runnerClient, exactHubOrigin: 'https://conexus.test', previewPort: 3444,
+  sessions: { withPreviewRequest: async (_request, serve) => ({ kind: 'SERVED', value: await serve({ caller: runnerInput.caller, checked: { scope: { projectId: runnerInput.projectId, accountId: runnerInput.caller.accountId } }, artifactRevisionId }) }) }, applicationRunner: runnerClient, exactHubOrigin: 'https://conexus.test', previewPort: 3444,
   registry: {
-    readServedManifest: async () => ({ artifactRevisionId, files: [{ path: 'conexus-server/manifest.json', mediaType: 'application/json' }] }),
-    readServedFile: async (_checked, path) => ({ ok: true, artifactRevisionId, file: { path, mediaType: 'application/json', sha256: 'a'.repeat(64), bytes: Buffer.from('{}') } }),
+    readPreviewManifest: async () => ({ sourceRevision: 'a'.repeat(40), entryPath: 'index.html', files: [{ path: 'conexus-server/manifest.json', mediaType: 'application/json' }] }),
+    readPreviewRevisionFile: async (_checked, { path }) => ({ path, mediaType: 'application/json', sha256: 'a'.repeat(64), bytes: Buffer.from('{}') }),
   },
-  applicationHost: {
-    application: { port: 3445, domain: 'conexus.localhost' },
-    sessions: { withApplicationRequest: async (_presented, serve) => ({ kind: 'SERVED', value: await serve({ caller: runnerInput.caller, checked: { scope: { projectId: runnerInput.projectId, accountId: runnerInput.caller.accountId } } }) }) },
-  },
+
 })
-const application = await createHttpApp({ policy: hosting.applicationHost.policy, registerRoutes: hosting.applicationHost.registerRoutes })
+const application = await createHttpApp({ policy: hosting.previewPolicy, registerRoutes: hosting.registerPreviewRoutes })
 await application.listen({ host: '127.0.0.1', port: 0 })
 const applicationOrigin = 'http://127.0.0.1:' + application.server.address().port
 ` : ''}
@@ -148,7 +145,7 @@ for (const [name, { before, ...request }] of cases) {
 ${runner ? `logger.info('CASE native hosting escape')
 report['native hosting escape'] = await new Promise((resolve, reject) => {
   const outgoing = httpRequest(applicationOrigin + '/__conexus/api/find', {
-    method: 'POST', headers: { host: 'test-app.conexus.localhost:3445', origin: 'https://test-app.conexus.localhost:3445', 'content-type': 'application/json', cookie: '__Host-conexus_app=' + 's'.repeat(43) },
+    method: 'POST', headers: { host: 'preview-44444444-4444-4444-8444-444444444444.conexus.localhost:3444', origin: 'https://preview-44444444-4444-4444-8444-444444444444.conexus.localhost:3444', 'content-type': 'application/json', cookie: '__Host-conexus_preview=' + 's'.repeat(43) },
   }, (incoming) => {
     const chunks = []
     incoming.on('data', (chunk) => chunks.push(chunk))

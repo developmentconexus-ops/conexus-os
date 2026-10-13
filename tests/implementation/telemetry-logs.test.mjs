@@ -63,10 +63,9 @@ const HOST_FAILURE = `
 const { createHttpApp } = await import(process.env.HUB_BUILD + '/http/app.js')
 const { createHostingModule } = await import(process.env.HUB_BUILD + '/hosting/module.js')
 const PROJECT = '11111111-1111-4111-8111-111111111111'
-const HOST = 'caderno.conexus.localhost:3445'
-const application = { port: 3445, domain: 'conexus.localhost' }
+const HOST = 'preview-33333333-3333-4333-8333-333333333333.conexus.localhost:3444'
 const hostSessions = {
-  withApplicationRequest: async (_presented, serve) => ({ kind: 'SERVED', value: await serve({
+  withPreviewRequest: async (_presented, serve) => ({ kind: 'SERVED', value: await serve({
     caller: { accountId: '44444444-4444-4444-8444-444444444444', email: 'a@example.test', displayName: 'A' },
     checked: { scope: { accountId: '44444444-4444-4444-8444-444444444444', projectId: PROJECT } },
   }) }),
@@ -74,25 +73,24 @@ const hostSessions = {
   signOut: async () => {},
 }
 const registry = {
-  readServedManifest: async () => ({ artifactRevisionId: '33333333-3333-4333-8333-333333333333', files: [{ path: 'conexus-server/manifest.json', mediaType: 'application/json; charset=utf-8' }, { path: 'conexus-server/listDeals.mjs', mediaType: 'text/javascript; charset=utf-8' }] }),
-  readServedFile: async (_checked, path) => ({ ok: true, artifactRevisionId: '33333333-3333-4333-8333-333333333333', file: { path, mediaType: 'text/javascript; charset=utf-8', sha256: 'e'.repeat(64), bytes: new Uint8Array(4) } }),
+  readPreviewManifest: async () => ({ sourceRevision: 'a'.repeat(40), entryPath: 'index.html', files: [{ path: 'conexus-server/manifest.json', mediaType: 'application/json; charset=utf-8' }, { path: 'conexus-server/listDeals.mjs', mediaType: 'text/javascript; charset=utf-8' }] }),
+  readPreviewRevisionFile: async (_checked, { path }) => ({ path, mediaType: 'text/javascript; charset=utf-8', sha256: 'e'.repeat(64), bytes: new Uint8Array(4) }),
 }
 const hosting = createHostingModule({
-  sessions: { redeem: async () => null, withPreviewRequest: async () => ({ kind: 'SIGN_IN_REQUIRED' }) },
+  sessions: hostSessions,
   registry,
   applicationRunner: { invoke: async () => { throw new Error('runner socket refused: PLANTED_RUNNER_CAUSE') } },
   exactHubOrigin: 'https://hub.conexus.localhost:3443',
   previewPort: 3444,
-  applicationHost: { sessions: hostSessions, application },
 })
-const app = await createHttpApp({ policy: hosting.applicationHost.policy, staticRoot: null, registerRoutes: hosting.applicationHost.registerRoutes })
-const answer = await app.inject({ method: 'POST', url: '/__conexus/api/listDeals', cookies: { '__Host-conexus_app': 't'.repeat(43) }, payload: {},
+const app = await createHttpApp({ policy: hosting.previewPolicy, staticRoot: null, registerRoutes: hosting.registerPreviewRoutes })
+const answer = await app.inject({ method: 'POST', url: '/__conexus/api/listDeals', cookies: { '__Host-conexus_preview': 't'.repeat(43) }, payload: {},
   headers: { host: HOST, 'content-type': 'application/json', origin: 'https://' + HOST } })
 console.log(JSON.stringify({ answer: [answer.statusCode, answer.json()] }))
 await app.close()
 `
 
-test('the application host logs the type of a failed invoke cause with project and operation, then answers 503 with its row', async () => {
+test('the Preview host logs the type of a failed invoke cause with project and operation, then answers 503 with its row', async () => {
   const collector = await startCollector()
   try {
     const result = await runWithTelemetry(HOST_FAILURE, { endpoint: collector.endpoint })

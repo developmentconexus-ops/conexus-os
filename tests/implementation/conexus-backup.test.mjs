@@ -1,3 +1,4 @@
+const { allocate } = await import(hubModuleUrl('app-runner/allocation.js'))
 import assert from 'node:assert/strict'
 import { execFileSync, spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
@@ -9,15 +10,15 @@ import pg from 'pg'
 import { provisionApplicationDatabase } from '../../scripts/provision-application-database.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 
-const { ensurePreviewAllocation, previewAllocation, applyPendingMigrations } = await import(hubModuleUrl('app-runner/data-plane.js'))
+const { ensureAllocation, applyPendingMigrations } = await import(hubModuleUrl('app-runner/data-plane.js'))
 
 const POSTGRES_IMAGE = 'postgres:17.10-bookworm@sha256:9b18b78397054fce88a9552e9d5a3ad5bb7fd258c5b3cc1c5028e46373d6ea8f'
 const KEYCLOAK_IMAGE = 'quay.io/keycloak/keycloak@sha256:c2a17fe407e892196d0b7cf9cef54e60952d6c372a9205f661a9efa0911463b0'
 const KEYCLOAK = `conexus-backup-test-kc-${process.pid}`
 const SOURCE = `conexus-backup-test-${process.pid}`
 const APPLICATIONS = `conexus-backup-test-applications-${process.pid}`
-const allocation = previewAllocation('00000000-0000-0000-0000-000000000001')
-const otherAllocation = previewAllocation('00000000-0000-0000-0000-000000000002')
+const allocation = allocate({ projectId: '00000000-0000-4000-8000-000000000001', kind: 'PREVIEW' })
+const otherAllocation = allocate({ projectId: allocation.projectId, kind: 'PUBLISHED' })
 const scratch = mkdtempSync(join(tmpdir(), 'conexus-backup-test-'))
 const gitRoot = join(scratch, 'git')
 const outRoot = join(scratch, 'backups')
@@ -64,18 +65,20 @@ test.before(async () => {
   const provisioner = new pg.Client({ ...cluster, database: 'conexus_apps', user: 'app_provisioner' })
   await provisioner.connect()
   try {
-    await ensurePreviewAllocation(provisioner, { allocation, database: 'conexus_apps' })
-    await ensurePreviewAllocation(provisioner, { allocation: otherAllocation, database: 'conexus_apps' })
+    await ensureAllocation(provisioner, { allocation, database: 'conexus_apps' })
+    await ensureAllocation(provisioner, { allocation: otherAllocation, database: 'conexus_apps' })
   } finally {
     await provisioner.end()
   }
-  const migrator = new pg.Client({ ...cluster, database: 'conexus_apps', user: allocation.migrationRole })
-  await migrator.connect()
-  try {
-    const sql = "CREATE TABLE notes (id bigserial PRIMARY KEY, body text NOT NULL); INSERT INTO notes (body) VALUES ('synthetic');"
-    assert.deepEqual(await applyPendingMigrations(migrator, allocation.schema, [{ position: 1, name: '001_notes.sql', sql, sha256: createHash('sha256').update(sql).digest('hex') }]), { ok: true, result: undefined })
-  } finally {
-    await migrator.end()
+  for (const [target, body] of [[allocation, 'synthetic'], [otherAllocation, 'synthetic-published']]) {
+    const migrator = new pg.Client({ ...cluster, database: 'conexus_apps', user: target.migrationRole })
+    await migrator.connect()
+    try {
+      const sql = `CREATE TABLE notes (id bigserial PRIMARY KEY, body text NOT NULL); INSERT INTO notes (body) VALUES ('${body}');`
+      assert.deepEqual(await applyPendingMigrations(migrator, target.schema, [{ position: 1, name: '001_notes.sql', sql, sha256: createHash('sha256').update(sql).digest('hex') }]), { ok: true, result: undefined })
+    } finally {
+      await migrator.end()
+    }
   }
   applicationSql('CREATE EXTENSION pgcrypto')
   execFileSync('docker', ['run', '--rm', '-d', '--name', KEYCLOAK, '-e', 'KC_BOOTSTRAP_ADMIN_USERNAME=admin', '-e', 'KC_BOOTSTRAP_ADMIN_PASSWORD=scratch-pw-1', KEYCLOAK_IMAGE, 'start-dev'])
@@ -119,13 +122,14 @@ test('the backup describes itself: it passes after the source changed and fails 
   assert.match(manifest, /^rows public\.notes 3$/m)
   assert.match(manifest, /^rows public\.tags 2$/m)
   assert.match(manifest, new RegExp(`^applications-rows ${allocation.schema}\\.notes 1$`, 'm'))
-  assert.match(manifest, /^# applications-tables 3$/m)
+  assert.match(manifest, new RegExp(`^applications-rows ${otherAllocation.schema}\\.notes 1$`, 'm'))
+  assert.match(manifest, /^# applications-tables 4$/m)
   assert.doesNotMatch(readFileSync(join(dir, 'applications-globals.sql'), 'utf8'), /PASSWORD '/)
 
   const args = ['--backup', dir]
   psql('DELETE FROM notes WHERE id = 3')
   const pass = sh(script('conexus-restore-check.sh'), args)
-  assert.equal(pass.stdout.trim(), 'PASS tables=2 repositories=1 applications-tables=3', pass.stderr)
+  assert.equal(pass.stdout.trim(), 'PASS tables=2 repositories=1 applications-tables=4', pass.stderr)
   assert.equal(pass.status, 0)
 
   writeFileSync(join(dir, 'manifest.txt'), manifest.replace('rows public.notes 3', 'rows public.notes 4'))
@@ -186,7 +190,7 @@ if [[ "$1" = stop && "$2" = conexus-restore-applications-check-* ]]; then
 fi
 exec "$REAL_DOCKER" "$@"`)
     assert.equal(check.status, 0, check.stdout + check.stderr)
-    assert.equal(check.stdout.trim(), 'PASS tables=2 repositories=1 applications-tables=3')
+    assert.equal(check.stdout.trim(), 'PASS tables=2 repositories=1 applications-tables=4')
     assert.equal(readFileSync(proof, 'utf8'), `${allocation.schema}\n1|synthetic\n2\nf\n1\n1\napp_provisioner\n${allocation.migrationRole}\nt|t\npgcrypto\nt\n0\n`)
     assert.equal(readFileSync(denied, 'utf8'), 'ERROR:  42501\nERROR:  42501\nERROR:  42501\n')
   } finally {
@@ -292,7 +296,7 @@ test('the scheduled run keeps seven verified folders through a failed backup and
 
   const ok = sh(script('conexus-backup-run.sh'), backupArgs(root))
   assert.equal(ok.status, 0, ok.stderr)
-  assert.match(ok.stdout.trim(), /^BACKUP_RUN code=OK folder=.+ PASS tables=2 repositories=1 applications-tables=3$/)
+  assert.match(ok.stdout.trim(), /^BACKUP_RUN code=OK folder=.+ PASS tables=2 repositories=1 applications-tables=4$/)
   const verified = readdirSync(root).filter((name) => !name.endsWith('.failed')).sort()
   assert.deepEqual(verified.slice(0, 6), seeded.slice(1))
   assert.equal(verified.length, 7)

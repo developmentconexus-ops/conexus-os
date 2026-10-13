@@ -7,7 +7,7 @@ import { applicationHostContentSecurityPolicy, previewContentSecurityPolicy } fr
 import { applicationOrigin, authority } from '../platform/config.js'
 import type { ApplicationAddress } from '../platform/config.js'
 import { registerApplicationHostRoutes } from './application-host-routes.js'
-import type { ApplicationHostReader, ApplicationHostSessions } from './application-host-routes.js'
+import type { ApplicationHostSessions } from './application-host-routes.js'
 import { createApplicationInvoker } from './application-invoker.js'
 import type { ApplicationRunnerInvoke, ConnectorPortOpener } from './application-invoker.js'
 import { registerPreviewRoutes } from './preview-routes.js'
@@ -27,7 +27,7 @@ export type HostingModule = Readonly<{
   close(): Promise<void>
 }>
 
-export type HostingRegistry<A, P> = ApplicationHostReader<A> & PreviewReader<P>
+export type HostingRegistry<P> = PreviewReader<P>
 
 const PREVIEW_DOMAIN = 'conexus.localhost'
 const PREVIEW_HOST = /^preview-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.conexus\.localhost(?::\d+)?$/
@@ -55,7 +55,7 @@ export const createHostingModule = <A extends ScopedProof, P extends ScopedProof
   applicationHost,
 }: Readonly<{
   sessions: PreviewSessions<P>
-  registry: HostingRegistry<A, P>
+  registry: HostingRegistry<P>
   applicationRunner?: Readonly<{ invoke: ApplicationRunnerInvoke; openConnectorPort?: ConnectorPortOpener }>
   exactHubOrigin: string
   previewPort: number
@@ -68,7 +68,7 @@ export const createHostingModule = <A extends ScopedProof, P extends ScopedProof
   const pendingRequests = new Set<Promise<unknown>>()
   let closed = false
   let closing: Promise<void> | null = null
-  // One admission budget for both listeners: a busy application cannot starve every Preview, nor the reverse.
+  // Preview calls share one admission budget.
   const invokeApplication = applicationRunner
     ? createApplicationInvoker(applicationRunner)
     : undefined
@@ -124,7 +124,7 @@ export const createHostingModule = <A extends ScopedProof, P extends ScopedProof
         },
       } satisfies HostPolicy),
       registerRoutes: (app: FastifyInstance) => registerApplicationHostRoutes(app, {
-        ...applicationHost, reader: registry, ...(invokeApplication ? { invokeApplication } : {}), exactHubOrigin,
+        ...applicationHost, exactHubOrigin,
       }),
     }) : undefined,
     close,

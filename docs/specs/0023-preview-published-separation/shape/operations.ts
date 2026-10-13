@@ -10,12 +10,12 @@ export type RegistryPreviewOperations = Readonly<{
   readPreviewPresence(proof: Admitted<WorkspaceScope<'workspace.read'>, 'read'>, projectIds: readonly ProjectId[]): Promise<readonly ProjectId[]>
 }>
 type ForProject<T> = Omit<T, 'projectId'> & Readonly<{ projectId: ProjectId }>
-export type PreviewPrepareInput = ForProject<Parameters<ApplicationRunnerClient['prepare']>[0]>
+export type PreviewPrepareInput = ForProject<Parameters<ApplicationRunnerClient['preparePreview']>[0]>
 export type EnvironmentInvokeInput = ForProject<Parameters<ApplicationRunnerClient['invoke']>[0]> & Readonly<{ kind: Allocation['kind'] }>
 export type RunnerOperations = Readonly<{
-  preparePreview(input: PreviewPrepareInput): ReturnType<ApplicationRunnerClient['prepare']>
+  preparePreview(input: PreviewPrepareInput): ReturnType<ApplicationRunnerClient['preparePreview']>
   invoke(input: EnvironmentInvokeInput): ReturnType<ApplicationRunnerClient['invoke']>
-  disposePreview(input: ForProject<Parameters<ApplicationRunnerClient['release']>[0]>): ReturnType<ApplicationRunnerClient['release']>
+  disposePreview(input: ForProject<Parameters<ApplicationRunnerClient['disposePreview']>[0]>): ReturnType<ApplicationRunnerClient['disposePreview']>
 }>
 export type AllocationOperations = Readonly<{
   resetPreview(allocation: PreviewAllocation): Promise<void>

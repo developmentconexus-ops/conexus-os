@@ -102,7 +102,7 @@ const estate = async (t, prefix, { invoke } = {}) => {
   const purge = createProjectDeletion({
     database: hub.database,
     ports: {
-      releaseApplicationData: async () => undefined, killSandboxes: async () => undefined, deleteRepository: async () => undefined,
+      disposePreviewData: async () => undefined, killSandboxes: async () => undefined, deleteRepository: async () => undefined,
       purgeIdentityAccess: purgeProject, purgeConnectorBindings: purgeProjectBindings, purgeRegistry: registry.purge, hasOpenProjectRun: builderProjectPorts.hasOpenProjectRun, purgeBuilder: purgeProjectBuilder,
     },
   })

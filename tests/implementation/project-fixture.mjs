@@ -52,7 +52,7 @@ export const setupProjects = async (t, prefix, { repository } = {}) => {
     ($1, $4, 'owner'), ($2, $4, 'member'), ($3, $4, 'member')`, [ID.owner, ID.member, ID.memberAdministrator, ID.workspace])
   const events = []
   const ports = {
-    releaseApplicationData: async () => { events.push('release') },
+    disposePreviewData: async () => { events.push('release') },
     killSandboxes: async () => { events.push('kill') },
     deleteRepository: async () => { events.push('repository') },
     purgeIdentityAccess: purgeProject,

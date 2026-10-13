@@ -2,8 +2,10 @@ import { createHash, randomUUID } from 'node:crypto'
 import { lstat, mkdir, rm, writeFile } from 'node:fs/promises'
 import { basename, dirname, join, resolve } from 'node:path'
 import pg from 'pg'
-import { convergePreviewAllocations, ensurePreviewAllocation, planMigrations, previewAllocation, PROJECT_ROLE_NAME, PROVISIONER_ROLE, readLedger, releasePreviewAllocation, resetPreviewSchema, restoreRuntimePrivileges } from './data-plane.js'
-import type { LedgerRow, PreviewAllocation } from './data-plane.js'
+import { convergeAllocations, ensureAllocation, planMigrations, PROJECT_ROLE_NAME, PROVISIONER_ROLE, readLedger, disposePreviewAllocation, resetPreviewSchema, restoreRuntimePrivileges } from './data-plane.js'
+import type { LedgerRow } from './data-plane.js'
+import { allocate, type AllocationKind, type PreviewAllocation } from './allocation.js'
+import type { ProjectId } from '@conexus/contract'
 import { openPgRelay } from './pg-relay.js'
 import { validateMigrationBatch } from './migration-sql.js'
 import type { MigrationSource } from './migration-sql.js'
@@ -50,7 +52,7 @@ export type SupervisorConfig = Readonly<{
   connectorSocketDir?: string
 }>
 
-export type InvokeInput = Readonly<{ projectId: string; operation: string; input: unknown; files: readonly ServerFile[]; caller: Caller; connectorSocket?: string | undefined }>
+export type InvokeInput = Readonly<{ projectId: ProjectId; kind: AllocationKind; operation: string; input: unknown; files: readonly ServerFile[]; caller: Caller; connectorSocket?: string | undefined }>
 
 
 /**
@@ -173,7 +175,7 @@ export const createSupervisor = (config: SupervisorConfig) => {
     const admitted = await validateMigrationBatch(manifest.migrations)
     if (!admitted.ok) return prepareFailure({ code: admitted.error.code, migration: admitted.error.migration, sqlstate: null })
     const plan = await withProvisioner(async (client) => {
-      const allocate = () => ensurePreviewAllocation(client, { allocation, database: config.database })
+      const allocate = () => ensureAllocation(client, { allocation, database: config.database })
       await allocate()
       const ledger = await readLedger(client, allocation)
       const first = planMigrations(ledger, manifest.migrations)
@@ -216,8 +218,8 @@ export const createSupervisor = (config: SupervisorConfig) => {
    * Converges the Project's Preview schema on the artifact's migrations before its Preview is offered.
    * One Project migrates at a time.
    */
-  const prepare = async (input: Readonly<{ projectId: string; files: readonly ServerFile[]; onDivergence: OnDivergence }>): Promise<PrepareAnswer> => {
-    const allocation = previewAllocation(input.projectId)
+  const preparePreview = async (input: Readonly<{ projectId: ProjectId; files: readonly ServerFile[]; onDivergence: OnDivergence }>): Promise<PrepareAnswer> => {
+    const allocation = allocate({ projectId: input.projectId, kind: 'PREVIEW' })
     const admitted = admitServerTree(input.files)
     if (!admitted.ok) return prepareFailure({ code: admitted.error.code })
     const tree = admitted.result
@@ -240,15 +242,15 @@ export const createSupervisor = (config: SupervisorConfig) => {
    * the Project itself is deleted. Waits behind any migration already in flight for the Project so the
    * drop never races a CREATE the migration worker still holds open.
    */
-  const release = async (input: Readonly<{ projectId: string }>): Promise<void> => {
-    const allocation = previewAllocation(input.projectId)
+  const disposePreview = async (input: Readonly<{ projectId: ProjectId }>): Promise<void> => {
+    const allocation = allocate({ projectId: input.projectId, kind: 'PREVIEW' })
     const previous = preparing.get(allocation.projectId) ?? Promise.resolve()
     await previous.catch(() => undefined)
-    await withProvisioner((client) => releasePreviewAllocation(client, allocation))
+    await withProvisioner((client) => disposePreviewAllocation(client, allocation))
   }
 
   const invoke = async (input: InvokeInput): Promise<InvokeAnswer> => {
-    const allocation = previewAllocation(input.projectId)
+    const allocation = allocate(input)
     const admitted = admitServerTree(input.files)
     if (!admitted.ok) return invokeFailure({ code: admitted.error.code })
     const tree = admitted.result
@@ -291,11 +293,11 @@ export const createSupervisor = (config: SupervisorConfig) => {
         OR EXISTS (SELECT 1 FROM pg_roles r WHERE r.rolname ~ $1 AND has_language_privilege(r.oid, l.oid, 'USAGE')))
         ORDER BY 1`, [PROJECT_ROLE_NAME.source])
       if (usable.length > 0) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'RUNNER_ROUTINE_LANGUAGE_USABLE', languages: usable.map((row) => String(row.lanname)).join(',') } })
-      return convergePreviewAllocations(client, config.database)
+      return convergeAllocations(client, config.database)
     }),
-    prepare,
+    preparePreview,
     invoke,
-    release,
+    disposePreview,
     close: async () => { await provisioner.end().catch(() => undefined) },
   })
 }

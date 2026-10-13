@@ -130,7 +130,7 @@ export type CandidateOperationPorts = Readonly<{
   /** One invocation's connector port on the run's own scope, or null when the Hub serves none. */
   openConnectorPort(): Promise<Readonly<{ socketPath: string; close(): Promise<void> }> | null>
   invoke(input: Readonly<{
-    projectId: ProjectId; operation: string; input: unknown; files: readonly ServerFile[]; caller: Caller; connectorSocket?: string
+    projectId: ProjectId; kind: 'PREVIEW'; operation: string; input: unknown; files: readonly ServerFile[]; caller: Caller; connectorSocket?: string
   }>): Promise<InvokeAnswer>
 }>
 
@@ -205,7 +205,7 @@ const runOnce = async (ports: CandidateOperationPorts, { operation, input }: Par
   const port = await ports.openConnectorPort()
   try {
     answer = await ports.invoke({
-      projectId: ports.projectId, operation, input, files: built.files, caller: ports.caller,
+      projectId: ports.projectId, kind: 'PREVIEW', operation, input, files: built.files, caller: ports.caller,
       ...(port ? { connectorSocket: port.socketPath } : {}),
     })
   } finally {

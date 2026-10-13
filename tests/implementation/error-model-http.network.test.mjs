@@ -185,7 +185,7 @@ test('a native runner fault keeps redacted cause frames and joins the Hub log an
     const hostBody = JSON.parse(hostText)
     assert.deepEqual([hostStatus, hostContentType, hostBody.code, hostBody.status], [500, 'application/problem+json', 'INTERNAL_UNEXPECTED', 500])
     assert.equal(hostHeaders['x-content-type-options'], 'nosniff')
-    assert.match(hostHeaders['content-security-policy'], /frame-ancestors 'none'/)
+    assert.match(hostHeaders['content-security-policy'], /frame-ancestors https:\/\/conexus\.test; sandbox allow-scripts allow-same-origin allow-forms/)
     assert.deepEqual(caseFailureLines(records, 'native hosting escape'), ['INTERNAL_UNEXPECTED'])
     const hostLog = restFailureLine(records, 'native hosting escape', 'INTERNAL_UNEXPECTED')
     const hostSpan = spans.find((span) => span['http.route'] === '/__conexus/api/:operation')
@@ -234,13 +234,13 @@ test('worker Results cross the real runner and Hub transports without private di
   const directory = await mkdtemp(join(tmpdir(), 'cx-pin-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
   const socketPath = join(directory, 'runner.sock')
-  const runner = createApplicationRunnerApp({ supervisor: { invoke: async () => worker, prepare: async () => ({ ok: true, result: { reset: false, applied: [] } }), release: async () => {} }, log: () => {} })
+  const runner = createApplicationRunnerApp({ supervisor: { invoke: async () => worker, preparePreview: async () => ({ ok: true, result: { reset: false, applied: [] } }), disposePreview: async () => {} }, log: () => {} })
   t.after(() => runner.close())
   await runner.listen({ path: socketPath })
   const client = createApplicationRunnerClient(socketPath)
-  const input = { projectId: '11111111-1111-4111-8111-111111111111', operation: 'find', input: {}, files: [{ path: 'conexus-server/manifest.json', content: 'e30=', sha256: 'a'.repeat(64) }], caller: { accountId: '22222222-2222-4222-8222-222222222222', email: null, displayName: 'Synthetic' } }
+  const input = { kind: 'PREVIEW', projectId: '11111111-1111-4111-8111-111111111111', operation: 'find', input: {}, files: [{ path: 'conexus-server/manifest.json', content: 'e30=', sha256: 'a'.repeat(64) }], caller: { accountId: '22222222-2222-4222-8222-222222222222', email: null, displayName: 'Synthetic' } }
   assert.deepEqual(await client.invoke(input), worker)
-  const successRunner = createApplicationRunnerApp({ supervisor: { invoke: async () => ({ ok: true, result: { count: 1 } }), prepare: async () => ({ ok: true, result: { reset: false, applied: [] } }), release: async () => {} }, log: () => {} })
+  const successRunner = createApplicationRunnerApp({ supervisor: { invoke: async () => ({ ok: true, result: { count: 1 } }), preparePreview: async () => ({ ok: true, result: { reset: false, applied: [] } }), disposePreview: async () => {} }, log: () => {} })
   t.after(() => successRunner.close())
   const successSocket = join(directory, 'runner-success.sock')
   await successRunner.listen({ path: successSocket })
@@ -254,13 +254,13 @@ test('native runner faults and malformed requests cross the real owner socket as
   const events = []
   const projectId = '11111111-1111-4111-8111-111111111111'
   const file = { path: 'conexus-server/manifest.json', sha256: 'a'.repeat(64), content: 'e30=' }
-  const invoke = { projectId, operation: 'listNotes', input: {}, files: [file], caller: { accountId: '22222222-2222-4222-8222-222222222222', email: null, displayName: 'Synthetic' } }
+  const invoke = { projectId, kind: 'PREVIEW', operation: 'listNotes', input: {}, files: [file], caller: { accountId: '22222222-2222-4222-8222-222222222222', email: null, displayName: 'Synthetic' } }
   const prepare = { projectId, files: [file], onDivergence: 'REFUSE' }
   const runner = createApplicationRunnerApp({
     supervisor: {
-      prepare: async () => { throw new Error('PRIVATE_RUNNER_PREPARE_MARKER') },
+      preparePreview: async () => { throw new Error('PRIVATE_RUNNER_PREPARE_MARKER') },
       invoke: async () => { throw new Error('PRIVATE_RUNNER_INVOKE_MARKER') },
-      release: async () => { throw new Error('PRIVATE_RUNNER_RELEASE_MARKER') },
+      disposePreview: async () => { throw new Error('PRIVATE_RUNNER_RELEASE_MARKER') },
     },
     log: (event) => events.push(event),
   })
@@ -276,13 +276,13 @@ test('native runner faults and malformed requests cross the real owner socket as
     outgoing.end(JSON.stringify(body))
   })
 
-  for (const [path, body] of [['/v1/prepare', prepare], ['/v1/invoke', invoke], ['/v1/release', { projectId }]]) {
+  for (const [path, body] of [['/v1/prepare-preview', prepare], ['/v1/invoke', invoke], ['/v1/dispose-preview', { projectId }]]) {
     const response = await requestOnSocket(path, body)
     const problem = JSON.parse(response.text)
     assert.deepEqual([response.status, response.contentType, problem.type, problem.title, problem.status, problem.code], [500, 'application/problem+json', 'urn:conexus:problem:INTERNAL_UNEXPECTED', 'INTERNAL_UNEXPECTED', 500, 'INTERNAL_UNEXPECTED'], path)
     assert.equal(response.text.includes('PRIVATE_RUNNER_'), false, path)
   }
-  const invalid = await requestOnSocket('/v1/prepare', { projectId: 'invalid' })
+  const invalid = await requestOnSocket('/v1/prepare-preview', { projectId: 'invalid' })
   assert.deepEqual([invalid.status, invalid.contentType, JSON.parse(invalid.text).code], [400, 'application/problem+json', 'RUNNER_REQUEST_REFUSED'])
   await assert.rejects(() => createApplicationRunnerClient(socketPath).invoke(invoke), (error) => error.id === 'INTERNAL_UNEXPECTED')
   assert.deepEqual(events, [])

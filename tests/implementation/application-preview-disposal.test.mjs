@@ -1,12 +1,13 @@
+const { allocate } = await import(hubModuleUrl('app-runner/allocation.js'))
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { hubModuleUrl } from './hub-build.mjs'
 
-const { previewAllocation, releasePreviewAllocation } = await import(hubModuleUrl('app-runner/data-plane.js'))
+const { disposePreviewAllocation } = await import(hubModuleUrl('app-runner/data-plane.js'))
 
 // Postgres 16+ lets DROP OWNED BY clear a role only for a session holding that role's privileges,
 // and the provisioner holds a Project's migration role with INHERIT FALSE and its runtime role with
-// none (ensurePreviewAllocation). A fake provisioner applies that rule: it starts with no privileges
+// none (ensureAllocation). A fake provisioner applies that rule: it starts with no privileges
 // and gains them only through a GRANT ... WITH INHERIT TRUE, as the live cluster did when releasing
 // 8 Projects failed with "permission denied to drop objects".
 const fakeProvisioner = (existingRoles) => {
@@ -31,9 +32,9 @@ const fakeProvisioner = (existingRoles) => {
 }
 
 test('releasing a Project clears and drops both of its roles although the provisioner does not inherit them', async () => {
-  const allocation = previewAllocation('30000000-0000-8000-8000-000000000004')
+  const allocation = allocate({ projectId: '30000000-0000-8000-8000-000000000004', kind: 'PREVIEW' })
   const provisioner = fakeProvisioner([allocation.migrationRole, allocation.runtimeRole])
 
-  await releasePreviewAllocation(provisioner, allocation)
+  await disposePreviewAllocation(provisioner, allocation)
   assert.deepEqual(provisioner.dropped, [allocation.migrationRole, allocation.runtimeRole])
 })

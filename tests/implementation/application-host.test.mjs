@@ -1,17 +1,13 @@
+import { request } from 'node:http'
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
-import { once } from 'node:events'
-import { request } from 'node:http'
 import { test } from 'node:test'
-import { setTimeout as delay } from 'node:timers/promises'
 import { hubModuleUrl } from './hub-build.mjs'
 import { invalidConfig } from './failure-matchers.mjs'
 import { testListener } from './access/test-listener.mjs'
 
 const { createHostingModule } = await import(hubModuleUrl('hosting/module.js'))
 const { registerApplicationHostRoutes } = await import(hubModuleUrl('hosting/application-host-routes.js'))
-const { createApplicationInvoker } = await import(hubModuleUrl('hosting/application-invoker.js'))
-const { logger } = await import(hubModuleUrl('platform/logger.js'))
 const { applicationSlugOfHost } = await import(hubModuleUrl('identity-access/public.js'))
 const { applicationOrigin, readHubConfig } = await import(hubModuleUrl('platform/config.js'))
 
@@ -25,24 +21,17 @@ const HOST_B = `outro-app.conexus.localhost:${PORT}`
 const ORIGIN_A = `https://${HOST_A}`
 const PROJECT_A = '11111111-1111-4111-8111-111111111111'
 const PROJECT_B = '22222222-2222-4222-8222-222222222222'
-const ARTIFACT = '33333333-3333-4333-8333-333333333333'
 const EMPLOYEE = Object.freeze({ accountId: '44444444-4444-4444-8444-444444444444', email: 'funcionaria@example.test', displayName: 'Funcionária' })
 const TOKEN_A = 't'.repeat(43)
 const HANDOFF = 'h'.repeat(43)
 const SECOND_HANDOFF = 'k'.repeat(43)
 const sha = (value) => createHash('sha256').update(value).digest()
 
-const files = {
-  'index.html': { mediaType: 'text/html; charset=utf-8', text: '<!doctype html><title>Caderno</title>' },
-  'assets/app.js': { mediaType: 'text/javascript; charset=utf-8', text: 'console.log(1)' },
-  'conexus-server/manifest.json': { mediaType: 'application/json; charset=utf-8', text: '{}' },
-}
-
 const APPLICATIONS = Object.freeze({ 'caderno-de-compras': PROJECT_A, 'outro-app': PROJECT_B })
 const BINDING = 'g'.repeat(43)
 const MINTED = 'n'.repeat(43)
 
-const harness = async (t, { outcomeFor, application = APPLICATION, invokeApplication, runner, registryOverrides = {} } = {}) => {
+const harness = async (t, { outcomeFor, application = APPLICATION, runner } = {}) => {
   const calls = []
   const reads = []
   const sessions = new Map([[TOKEN_A, PROJECT_A]])
@@ -64,22 +53,7 @@ const harness = async (t, { outcomeFor, application = APPLICATION, invokeApplica
     },
     async signOut(sessionToken) { calls.push({ name: 'signOut', sessionToken }); sessions.delete(sessionToken) },
   }
-  const registry = {
-    async readServedManifest({ scope: { projectId } }) {
-      reads.push('served')
-      return projectId === PROJECT_A ? { artifactRevisionId: ARTIFACT, files: Object.entries(files).map(([path, file]) => ({ path, mediaType: file.mediaType })) } : null
-    },
-    async readServedFile({ scope: { projectId } }, path) {
-      reads.push(`readServedFile ${path}`)
-      if (projectId !== PROJECT_A) return { ok: false, reason: 'NOT_SERVED' }
-      const file = files[path]
-      return file
-        ? { ok: true, artifactRevisionId: ARTIFACT, file: { path, mediaType: file.mediaType, bytes: Buffer.from(file.text), sha256: sha(file.text).toString('hex') } }
-        : { ok: false, reason: 'NOT_FOUND', artifactRevisionId: ARTIFACT }
-    },
-    ...registryOverrides,
-  }
-  const recordInvocation = async ({ callerLeft: _callerLeft, ...input }) => { calls.push({ name: 'invoke', input }); return Response.json({ ok: true }) }
+  const registry = {}
   const hosting = createHostingModule({
     sessions: { redeem: async () => null, withPreviewRequest: async () => ({ kind: 'SIGN_IN_REQUIRED' }) },
     registry,
@@ -91,7 +65,7 @@ const harness = async (t, { outcomeFor, application = APPLICATION, invokeApplica
   const { app } = await testListener({
     policy: hosting.applicationHost.policy,
     registerRoutes: (server) => runner ? hosting.applicationHost.registerRoutes(server) : registerApplicationHostRoutes(server, {
-      exactHubOrigin: HUB, application, sessions: hostSessions, reader: registry, invokeApplication: invokeApplication ?? recordInvocation,
+      exactHubOrigin: HUB, application, sessions: hostSessions,
     }),
   })
   t.after(() => app.close())
@@ -172,9 +146,9 @@ test('the application host answers on its configured domain, and its API admits 
   const company = { port: PORT, domain: 'apps.empresa.test' }
   const host = `caderno-de-compras.apps.empresa.test:${PORT}`
   const { app } = await harness(t, { application: company })
-  assert.equal((await app.inject({ method: 'GET', url: '/', headers: { host }, ...signedIn })).statusCode, 200)
+  assert.equal((await app.inject({ method: 'GET', url: '/', headers: { host }, ...signedIn })).statusCode, 503)
   assert.equal((await app.inject({ method: 'GET', url: '/', headers: { host: HOST_A }, ...signedIn })).statusCode, 404)
-  assert.equal((await app.inject(api('listNotes', { host, origin: `https://${host}` }))).statusCode, 200)
+  assert.equal((await app.inject(api('listNotes', { host, origin: `https://${host}` }))).statusCode, 503)
   const foreign = await app.inject(api('listNotes', { host, origin: ORIGIN_A }))
   assert.deepEqual([foreign.statusCode, foreign.json().code], [403, 'REQUEST_AUTHENTICITY_DENIED'])
 })
@@ -266,28 +240,6 @@ test('a redeemed handoff sets a host-only session cookie that replaces any value
   assert.equal(replay.statusCode, 403)
 })
 
-test('a page or asset costs one read of the served artifact, and the server tree is never read for the browser', async (t) => {
-  const { app, reads } = await harness(t)
-  assert.equal((await app.inject({ method: 'GET', url: '/assets/app.js', headers: { host: HOST_A }, ...signedIn })).body, files['assets/app.js'].text)
-  assert.equal((await app.inject({ method: 'GET', url: '/conexus-server/manifest.json', headers: { host: HOST_A }, ...signedIn })).statusCode, 404)
-  assert.deepEqual(reads, ['readServedFile assets/app.js'])
-})
-
-test('a signed-in person gets the served files, never the server tree, and the page is neither framed nor shared cross-origin', async (t) => {
-  const { app } = await harness(t)
-  const index = await app.inject({ method: 'GET', url: '/', headers: { host: HOST_A, origin: HUB }, ...signedIn })
-  assert.equal(index.statusCode, 200)
-  assert.equal(index.body, files['index.html'].text)
-  assert.match(index.headers['content-security-policy'], /frame-ancestors 'none'$/)
-  assert.equal(index.headers['access-control-allow-origin'], undefined)
-  assert.equal(index.headers['referrer-policy'], 'no-referrer')
-  assert.equal(index.headers['cache-control'], 'no-store')
-  assert.equal((await app.inject({ method: 'GET', url: '/assets/app.js', headers: { host: HOST_A }, ...signedIn })).statusCode, 200)
-  assert.equal((await app.inject({ method: 'GET', url: '/conexus-server/manifest.json', headers: { host: HOST_A }, ...signedIn })).statusCode, 404)
-  assert.equal((await app.inject({ method: 'GET', url: '/missing.js', headers: { host: HOST_A }, ...signedIn })).statusCode, 404)
-  assert.equal((await app.inject({ method: 'GET', url: '/', headers: { host: 'nobody.conexus.localhost:3445' }, ...signedIn })).statusCode, 401, 'a host naming no application is answered by the port as no session')
-})
-
 test('a session for one application is no session on another application host', async (t) => {
   const { app } = await harness(t)
   const other = await app.inject({ method: 'GET', url: '/', headers: { host: HOST_B, ...NAVIGATION }, ...signedIn })
@@ -314,107 +266,6 @@ test('the application API admits only its own exact Origin', async (t) => {
   assert.equal((await app.inject({ ...api('addNote'), headers: { host: HOST_A, origin: ORIGIN_A, 'content-type': 'text/plain' }, payload: '{}' })).statusCode, 415)
   assert.equal((await app.inject({ method: 'POST', url: '/__conexus/sign-out', headers: { host: HOST_A, origin: HUB }, ...signedIn })).statusCode, 403)
   assert.deepEqual(calls, [])
-})
-
-test('the application host sends the native failure response on its socket and logs it once', async (t) => {
-  const logged = []
-  const originalError = logger.error
-  logger.error = (fields, code) => { logged.push(code); return originalError.call(logger, fields, code) }
-  t.after(() => { logger.error = originalError })
-  const invokeApplication = createApplicationInvoker({ invoke: async () => ({ ok: false, error: { code: 'APPLICATION_RUNNER_UNAVAILABLE' } }) })
-  const { app } = await harness(t, { invokeApplication })
-  await app.listen({ host: '127.0.0.1', port: 0 })
-  const response = await new Promise((resolve, reject) => {
-    const outgoing = request({
-      host: '127.0.0.1', port: app.server.address().port, method: 'POST', path: '/__conexus/api/listNotes',
-      headers: { host: HOST_A, origin: ORIGIN_A, 'content-type': 'application/json', cookie: `__Host-conexus_app=${TOKEN_A}` },
-    }, (incoming) => {
-      const chunks = []
-      incoming.on('data', (chunk) => chunks.push(chunk))
-      incoming.on('end', () => resolve({ status: incoming.statusCode, headers: incoming.headers, text: Buffer.concat(chunks).toString('utf8') }))
-    })
-    outgoing.on('error', reject)
-    outgoing.end('{}')
-  })
-  assert.equal(response.status, 503, response.text)
-  assert.equal(response.headers['content-type'], 'application/problem+json')
-  assert.equal(response.headers['x-content-type-options'], 'nosniff')
-  assert.match(response.headers['content-security-policy'], /frame-ancestors 'none'/)
-  assert.deepEqual(JSON.parse(response.text), { type: 'urn:conexus:problem:APPLICATION_RUNNER_UNAVAILABLE', title: 'APPLICATION_RUNNER_UNAVAILABLE', status: 503, code: 'APPLICATION_RUNNER_UNAVAILABLE' })
-  assert.deepEqual(logged, ['APPLICATION_RUNNER_UNAVAILABLE'])
-})
-
-test('the handler caller comes from the session; identifiers in the body, query or headers change nothing', async (t) => {
-  const { app, calls } = await harness(t)
-  const forged = { projectId: PROJECT_B, accountId: '99999999-9999-4999-8999-999999999999', caller: { accountId: '99999999-9999-4999-8999-999999999999', displayName: 'Chefe' }, text: 'nota' }
-  const response = await app.inject(api('addNote', {
-    payload: forged,
-    headers: { 'x-conexus-account': forged.accountId, 'x-conexus-project': PROJECT_B, 'x-conexus-caller': JSON.stringify(forged.caller) },
-  }))
-  assert.equal(response.statusCode, 200)
-  assert.deepEqual(calls, [{
-    name: 'invoke',
-    input: {
-      source: { via: 'APPLICATION', accountId: EMPLOYEE.accountId, projectId: PROJECT_A },
-      files: [{ path: 'conexus-server/manifest.json', sha256: sha('{}').toString('hex'), content: Buffer.from('{}').toString('base64') }],
-      operation: 'addNote',
-      input: forged,
-      caller: { accountId: '44444444-4444-4444-8444-444444444444', email: 'funcionaria@example.test', displayName: 'Funcionária' },
-    },
-  }])
-})
-
-const callOverSocket = async (app) => {
-  await app.listen({ host: '127.0.0.1', port: 0 })
-  const client = request({
-    host: '127.0.0.1', port: app.server.address().port, method: 'POST', path: '/__conexus/api/listNotes',
-    headers: { host: HOST_A, origin: ORIGIN_A, 'content-type': 'application/json', cookie: `__Host-conexus_app=${TOKEN_A}` },
-  })
-  client.on('error', () => {})
-  client.end('{}')
-  return client
-}
-
-test('a caller that disconnects while its call waits aborts that call\'s signal', async (t) => {
-  let invoked
-  const waiting = new Promise((resolve) => { invoked = resolve })
-  const { app } = await harness(t, {
-    invokeApplication: ({ callerLeft }) => {
-      invoked(callerLeft)
-      return once(callerLeft, 'abort').then(() => Response.json({}))
-    },
-  })
-  const client = await callOverSocket(app)
-  const signal = await waiting
-  assert.equal(signal.aborted, false, 'the call waits with a live signal')
-  client.destroy()
-  const outcome = await Promise.race([once(signal, 'abort').then(() => 'aborted'), delay(2000, 'still waiting', { ref: false })])
-  assert.equal(outcome, 'aborted')
-})
-
-test('a caller that disconnects before its call reaches the invoker hands the invoker an aborted signal', async (t) => {
-  const authorizing = Promise.withResolvers()
-  const authorized = Promise.withResolvers()
-  const invoked = Promise.withResolvers()
-  const { app } = await harness(t, {
-    outcomeFor: async () => {
-      authorizing.resolve()
-      await authorized.promise
-      return undefined
-    },
-    invokeApplication: async ({ callerLeft }) => {
-      invoked.resolve(callerLeft.aborted)
-      return Response.json({})
-    },
-  })
-  const connection = once(app.server, 'connection')
-  const client = await callOverSocket(app)
-  const [socket] = await connection
-  await authorizing.promise
-  client.destroy()
-  await once(socket, 'close')
-  authorized.resolve()
-  assert.equal(await invoked.promise, true)
 })
 
 test('Keycloak unreachable when a check is due refuses with 503 and keeps nothing open', async (t) => {
@@ -479,81 +330,6 @@ test('an unrecognized reason value falls back to the plain no-access page', asyn
   const response = await app.inject({ method: 'GET', url: '/__conexus/no-access?reason=<script>', headers: { host: HOST_A } })
   assert.equal(response.statusCode, 403)
   assert.match(response.body, /Você não tem acesso a este aplicativo/)
-})
-
-test('the application host answers a deep link with the app index and the same CSP, and a missing file with 404', async (t) => {
-  const { app, reads } = await harness(t)
-  const index = await app.inject({ method: 'GET', url: '/', headers: { host: HOST_A }, ...signedIn })
-  for (const [method, url] of [['GET', '/notas'], ['GET', '/notas/'], ['GET', '/notas/42'], ['HEAD', '/notas']]) {
-    const answer = await app.inject({ method, url, headers: { host: HOST_A }, ...signedIn })
-    assert.equal(answer.statusCode, 200, `${method} ${url}`)
-    assert.equal(answer.headers['content-type'], 'text/html; charset=utf-8', `${method} ${url}`)
-    assert.equal(answer.headers['content-security-policy'], index.headers['content-security-policy'], `${method} ${url}`)
-    assert.match(answer.headers['content-security-policy'], /frame-ancestors 'none'$/, `${method} ${url}`)
-    if (method === 'GET') assert.equal(answer.body, files['index.html'].text, url)
-  }
-  reads.length = 0
-  for (const url of ['/x.js', '/x.js/', '/conexus-server/nope', '/conexus-server', '/__conexus/other']) {
-    assert.equal((await app.inject({ method: 'GET', url, headers: { host: HOST_A }, ...signedIn })).statusCode, 404, url)
-  }
-  assert.deepEqual(reads, ['readServedFile x.js', 'readServedFile x.js'])
-})
-
-const serverFile = (reader) => ({ readServedFile: async (checked, path) => { serverReads.push(path); return reader(checked, path) } })
-const serverReads = []
-const runnerCalls = []
-const recordingRunner = (invoke) => ({ invoke: async (input) => { runnerCalls.push(input); return invoke(input) } })
-const fileOfServer = { ok: true, artifactRevisionId: ARTIFACT, file: { path: 'conexus-server/manifest.json', mediaType: 'application/json; charset=utf-8', bytes: Buffer.from('{}'), sha256: sha('{}').toString('hex') } }
-const operation = async (t, options) => {
-  serverReads.length = 0
-  runnerCalls.length = 0
-  const { app } = await harness(t, options)
-  const response = await app.inject(api('addNote'))
-  return { status: response.statusCode, code: response.json().code }
-}
-
-test('a server file read the access check refuses as APPLICATION_NOT_FOUND answers 404 and the runner receives nothing', async (t) => {
-  const { Failure } = await import(hubModuleUrl('platform/failure.js'))
-  const answer = await operation(t, {
-    runner: recordingRunner(async () => ({ ok: true, result: {} })),
-    registryOverrides: serverFile(async () => { throw new Failure('APPLICATION_NOT_FOUND') }),
-  })
-  assert.deepEqual([answer, serverReads, runnerCalls.length], [{ status: 404, code: 'APPLICATION_NOT_FOUND' }, ['conexus-server/manifest.json'], 0])
-})
-
-test('a served pointer that moved between the manifest and a server file read answers 503 APPLICATION_NOT_READY, and the runner receives nothing', async (t) => {
-  const MOVED = '55555555-5555-4555-8555-555555555555'
-  for (const read of [{ ...fileOfServer, artifactRevisionId: MOVED }, { ok: false, reason: 'NOT_FOUND', artifactRevisionId: MOVED }, { ok: false, reason: 'NOT_SERVED' }]) {
-    const answer = await operation(t, {
-      runner: recordingRunner(async () => ({ ok: true, result: {} })),
-      registryOverrides: serverFile(async () => read),
-    })
-    assert.deepEqual([answer, runnerCalls.length], [{ status: 503, code: 'APPLICATION_NOT_READY' }, 0], JSON.stringify(read))
-  }
-  const missing = await operation(t, {
-    runner: recordingRunner(async () => ({ ok: true, result: {} })),
-    registryOverrides: serverFile(async () => ({ ok: false, reason: 'NOT_FOUND', artifactRevisionId: ARTIFACT })),
-  })
-  assert.deepEqual([missing, runnerCalls.length], [{ status: 500, code: 'INTERNAL_UNEXPECTED' }, 0])
-})
-
-test('a runner that fails answers 503 APPLICATION_RUNNER_UNAVAILABLE, and a registry fault keeps its own code and status', async (t) => {
-  const { Failure } = await import(hubModuleUrl('platform/failure.js'))
-  const failing = await operation(t, {
-    runner: recordingRunner(async () => { throw new Error('RUNNER_DOWN') }),
-    registryOverrides: serverFile(async () => fileOfServer),
-  })
-  assert.deepEqual([failing.status, failing.code, runnerCalls.length], [503, 'APPLICATION_RUNNER_UNAVAILABLE', 1])
-  const busy = await operation(t, {
-    runner: recordingRunner(async () => ({ ok: true, result: {} })),
-    registryOverrides: serverFile(async () => { throw new Failure('DATABASE_BUSY') }),
-  })
-  assert.deepEqual([busy.status, busy.code, runnerCalls.length], [503, 'DATABASE_BUSY', 0])
-  const found = await operation(t, {
-    runner: recordingRunner(async () => ({ ok: true, result: { ok: true } })),
-    registryOverrides: serverFile(async () => fileOfServer),
-  })
-  assert.deepEqual([found.status, runnerCalls.length], [200, 1])
 })
 
 function socketReply(app, method, path, headers = {}, body) {

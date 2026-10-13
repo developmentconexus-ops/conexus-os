@@ -113,8 +113,8 @@ export const dependencyClosure = (entry: string, from: string = import.meta.dirn
   return found
 }
 
-const STAGED_FILES = ['app-runner/worker.js', 'app-runner/wire.js', 'app-runner/data-plane.js', 'app-runner/migration-sql.js', 'app-runner/server-manifest.js', 'platform/caller.js']
-const STAGED_PACKAGES = ['pg', 'zod', 'libpg-query']
+const STAGED_FILES = ['app-runner/worker.js', 'app-runner/wire.js', 'app-runner/data-plane.js', 'app-runner/allocation.js', 'app-runner/migration-sql.js', 'app-runner/server-manifest.js', 'platform/caller.js']
+const STAGED_PACKAGES = ['pg', 'zod', 'libpg-query', '@conexus/contract']
 
 /**
  * Builds the read-only tree mounted at /runner: the worker, the runner modules it imports, and a

@@ -11,7 +11,7 @@ export const HUB_OWNERS = Object.freeze({
   'app-runner': { entries: ['public.ts'], dependencies: [] },
   builder: { entries: ['public.ts'], dependencies: ['identity-access', 'app-runner', 'model-account', 'registry', 'hosting', 'project'] },
   connectors: { entries: [], dependencies: ['identity-access', 'project'] },
-  hosting: { entries: ['public.ts'], dependencies: ['identity-access'] },
+  hosting: { entries: ['public.ts'], dependencies: ['identity-access', 'app-runner'] },
   'model-account': { entries: ['module.ts'], dependencies: ['identity-access'] },
   project: { entries: ['public.ts'], dependencies: ['identity-access', 'builder', 'registry'] },
   registry: { entries: ['public.ts'], dependencies: ['identity-access'] },

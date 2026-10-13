@@ -13,7 +13,7 @@ export type BuilderRegistry = Pick<RegistryModule, 'seal' | 'retainAsPreview' | 
 // operation for `conexus_run_operation`.
 export type ApplicationServerPort = Readonly<{
   invoke: CandidateOperationPorts['invoke']
-  prepare(input: Readonly<{ projectId: ProjectId; files: readonly Readonly<{ path: string; sha256: string; content: string }>[] }>): Promise<PrepareAnswer>
+  preparePreview(input: Readonly<{ projectId: ProjectId; files: readonly Readonly<{ path: string; sha256: string; content: string }>[] }>): Promise<PrepareAnswer>
 }>
 
 const SERVER_ROOT = 'conexus-server/'
@@ -31,7 +31,7 @@ export const prepareApplicationServer = async (
   const files = compiled.files.filter((file) => file.path.startsWith(SERVER_ROOT))
   if (files.length === 0) return null
   if (!server) throw new Failure('APPLICATION_RUNNER_UNAVAILABLE')
-  const prepared = await server.prepare({
+  const prepared = await server.preparePreview({
     projectId: compiled.projectId,
     files: files.map((file) => ({ path: file.path, sha256: file.sha256, content: Buffer.from(file.bytes).toString('base64') })),
   })

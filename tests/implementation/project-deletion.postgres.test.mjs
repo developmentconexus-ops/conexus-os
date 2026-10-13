@@ -99,7 +99,7 @@ test('required cleanup failure keeps the Project open, and a finalization rollba
   const { createRegistryModule } = await import(hubModuleUrl('registry/module.js'))
   const { purgeProjectBindings } = await import(hubModuleUrl('connectors/store.js'))
   const { purgeProject } = await import(hubModuleUrl('identity-access/application-access.js'))
-  const ports = { releaseApplicationData: async () => undefined, killSandboxes: async () => undefined, deleteRepository: async () => { if (failing.repository++ === 0) throw new Error('GITHUB_DOWN') }, purgeIdentityAccess: purgeProject, purgeConnectorBindings: purgeProjectBindings, purgeRegistry: (proof, id) => { if (failing.registry++ === 0) throw new Error('REGISTRY_DOWN'); return registry.purge(proof, id) }, hasOpenProjectRun: builderProjectPorts.hasOpenProjectRun, purgeBuilder: purgeProjectBuilder }
+  const ports = { disposePreviewData: async () => undefined, killSandboxes: async () => undefined, deleteRepository: async () => { if (failing.repository++ === 0) throw new Error('GITHUB_DOWN') }, purgeIdentityAccess: purgeProject, purgeConnectorBindings: purgeProjectBindings, purgeRegistry: (proof, id) => { if (failing.registry++ === 0) throw new Error('REGISTRY_DOWN'); return registry.purge(proof, id) }, hasOpenProjectRun: builderProjectPorts.hasOpenProjectRun, purgeBuilder: purgeProjectBuilder }
   const registry = createRegistryModule({ database })
   const deletion = createProjectDeletion({ database, ports })
   const projectId = await seedProject('Atlas')

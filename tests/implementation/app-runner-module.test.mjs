@@ -27,7 +27,7 @@ const fakeRunner = async (t, reply) => {
 
 const refused = async (t, reply) => {
   const client = await fakeRunner(t, reply)
-  const outcome = await client.prepare({ projectId: 'p1', files: [], onDivergence: 'REFUSE' }).then(
+  const outcome = await client.preparePreview({ projectId: 'p1', files: [], onDivergence: 'REFUSE' }).then(
     (value) => ({ rejected: false, value }),
     (error) => ({ rejected: true, error }),
   )
@@ -37,7 +37,7 @@ const refused = async (t, reply) => {
 
 test('a handled prepare refusal resolves as its strict private Result', async (t) => {
   const client = await fakeRunner(t, { status: 200, body: { ok: false, error: { code: 'SERVER_TREE_REFUSED' } } })
-  assert.deepEqual(await client.prepare({ projectId: 'p1', files: [], onDivergence: 'REFUSE' }), { ok: false, error: { code: 'SERVER_TREE_REFUSED' } })
+  assert.deepEqual(await client.preparePreview({ projectId: 'p1', files: [], onDivergence: 'REFUSE' }), { ok: false, error: { code: 'SERVER_TREE_REFUSED' } })
 })
 
 test('a malformed private refusal becomes runner unavailable', async (t) => {
@@ -57,7 +57,7 @@ test('an escaping native Problem preserves only its validated table code', async
 
 test('prepare success resolves with the shared Result', async (t) => {
   const client = await fakeRunner(t, { status: 200, body: { ok: true, result: { reset: false, applied: [] } } })
-  assert.deepEqual(await client.prepare({ projectId: 'p1', files: [], onDivergence: 'REFUSE' }), { ok: true, result: { reset: false, applied: [] } })
+  assert.deepEqual(await client.preparePreview({ projectId: 'p1', files: [], onDivergence: 'REFUSE' }), { ok: true, result: { reset: false, applied: [] } })
 })
 
 test('a 200 reply that is not a prepare result is the runner being unavailable', async (t) => {
@@ -70,7 +70,7 @@ test('a 200 reply that is not a prepare result is the runner being unavailable',
 test('a prepare result keeps applied migration identity', async (t) => {
   const body = { ok: true, result: { reset: false, applied: ['001_a.sql'] } }
   const client = await fakeRunner(t, { status: 200, body })
-  assert.deepEqual(await client.prepare({ projectId: 'p1', files: [], onDivergence: 'REFUSE' }), body)
+  assert.deepEqual(await client.preparePreview({ projectId: 'p1', files: [], onDivergence: 'REFUSE' }), body)
 })
 
 test('call rejections preserve underlying causes', async (t) => {
@@ -118,8 +118,8 @@ test('call rejections preserve underlying causes', async (t) => {
 for (const status of [200, 201, 204]) {
   test(`release preserves the successful HTTP status distinction at ${status}`, async (t) => {
     const client = await fakeRunner(t, { status, body: { ok: true } })
-    if (status === 200) await client.release({ projectId: 'p1' })
-    else await assert.rejects(client.release({ projectId: 'p1' }), (error) => error.id === 'APPLICATION_RUNNER_RELEASE_REFUSED')
+    if (status === 200) await client.disposePreview({ projectId: 'p1' })
+    else await assert.rejects(client.disposePreview({ projectId: 'p1' }), (error) => error.id === 'APPLICATION_RUNNER_RELEASE_REFUSED')
   })
 }
 
@@ -129,14 +129,14 @@ for (const reply of [
 ]) {
   test(`release keeps ${reply.code} for a non-success HTTP response`, async (t) => {
     const client = await fakeRunner(t, reply)
-    await assert.rejects(client.release({ projectId: 'p1' }), (error) => error.id === reply.code)
+    await assert.rejects(client.disposePreview({ projectId: 'p1' }), (error) => error.id === reply.code)
   })
 }
 
 test('release maps a closed socket to runner unavailable', async (t) => {
   const directory = mkdtempSync(join(tmpdir(), 'cx-release-'))
   t.after(() => rmSync(directory, { recursive: true, force: true }))
-  await assert.rejects(createApplicationRunnerClient(join(directory, 'closed.sock')).release({ projectId: 'p1' }), (error) => error.id === 'APPLICATION_RUNNER_UNAVAILABLE')
+  await assert.rejects(createApplicationRunnerClient(join(directory, 'closed.sock')).disposePreview({ projectId: 'p1' }), (error) => error.id === 'APPLICATION_RUNNER_UNAVAILABLE')
 })
 
 for (const timing of ['before', 'in-flight']) {
@@ -155,7 +155,7 @@ for (const timing of ['before', 'in-flight']) {
     t.after(() => new Promise((resolve) => server.close(resolve)))
     const client = createApplicationRunnerClient(socketPath)
     if (timing === 'before') controller.abort(reason)
-    await assert.rejects(client.prepare({ projectId: 'p1', files: [], onDivergence: 'REFUSE', signal: controller.signal }), (error) => error === reason)
-    assert.deepEqual(await client.prepare({ projectId: 'p1', files: [], onDivergence: 'REFUSE' }), { ok: true, result: { reset: false, applied: [] } })
+    await assert.rejects(client.preparePreview({ projectId: 'p1', files: [], onDivergence: 'REFUSE', signal: controller.signal }), (error) => error === reason)
+    assert.deepEqual(await client.preparePreview({ projectId: 'p1', files: [], onDivergence: 'REFUSE' }), { ok: true, result: { reset: false, applied: [] } })
   })
 }

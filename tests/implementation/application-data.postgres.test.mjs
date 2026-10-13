@@ -1,3 +1,4 @@
+const { allocate } = await import(hubModuleUrl('app-runner/allocation.js'))
 import assert from 'node:assert/strict'
 import { randomBytes, randomUUID, createHash } from 'node:crypto'
 import { copyFileSync, mkdtempSync, rmSync } from 'node:fs'
@@ -12,7 +13,7 @@ import { adminConnection, buildHubDatabase } from './hub-database.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 import { refuseProtectedCluster } from './protected-cluster.mjs'
 
-const { applyPendingMigrations, convergePreviewAllocations, ensurePreviewAllocation, planMigrations, previewAllocation, readLedger, resetPreviewSchema } =
+const { applyPendingMigrations, convergeAllocations, ensureAllocation, planMigrations, readLedger, resetPreviewSchema, disposePreviewAllocation } =
   await import(hubModuleUrl('app-runner/data-plane.js'))
 
 // Every Project role here logs in through the runner's relay with its client certificate, as the
@@ -77,7 +78,7 @@ const setup = async (t) => {
   })
   const provisioner = new pg.Client({ ...admin, database, user: 'app_provisioner', password: provisionerPassword })
   await provisioner.connect()
-  const projects = [randomUUID(), randomUUID()].map(previewAllocation)
+  const projects = [randomUUID(), randomUUID()].map((projectId) => allocate({ projectId, kind: 'PREVIEW' }))
   const superuser = new pg.Client({ ...admin, database: 'postgres' })
   await superuser.connect()
   hub.onCleanup(async () => {
@@ -89,7 +90,7 @@ const setup = async (t) => {
     }
     await superuser.end()
   })
-  for (const allocation of projects) await ensurePreviewAllocation(provisioner, { allocation, database })
+  for (const allocation of projects) await ensureAllocation(provisioner, { allocation, database })
   return { database, hubDatabase: hub.database, provisioner, projects }
 }
 
@@ -269,7 +270,7 @@ test('Project Preview data is confined to its own schema, roles and database', a
     await superuser.query(`ALTER ROLE ${b.runtimeRole} PASSWORD '${legacy}' VALID UNTIL 'infinity'`)
     assert.equal(await loginWithoutPgHbaRules(b.runtimeRole, legacy, database), 'connected', 'the legacy password works wherever pg_hba allows passwords')
     await provisioner.query(`DROP POLICY migration_session ON ${b.schema}.conexus_migration`)
-    assert.deepEqual([...await convergePreviewAllocations(provisioner, database)].sort(), [a.projectId, b.projectId].sort())
+    assert.deepEqual((await convergeAllocations(provisioner, database)).map((allocation) => allocation.projectId).sort(), [a.projectId, b.projectId].sort())
     assert.equal(await loginWithoutPgHbaRules(b.runtimeRole, legacy, database), '28P01')
     const { rows } = await provisioner.query("SELECT count(*)::int AS n FROM pg_policies WHERE schemaname = $1 AND policyname = 'migration_session'", [b.schema])
     assert.equal(rows[0].n, 1)
@@ -422,7 +423,7 @@ test('Project Preview data is confined to its own schema, roles and database', a
     const plan = planMigrations(await readLedger(provisioner, a), edited)
     assert.equal(plan.reset, true)
     await resetPreviewSchema(provisioner, a)
-    await ensurePreviewAllocation(provisioner, { allocation: a, database })
+    await ensureAllocation(provisioner, { allocation: a, database })
     const migratorA = await loginAs(st, a.migrationRole, database)
     assert.deepEqual(await applyPendingMigrations(migratorA, a.schema, plan.pending), { ok: true, result: undefined })
     const runtimeA = await loginAs(st, a.runtimeRole, database)
@@ -461,14 +462,51 @@ test('confinement refuses server TLS material the cluster could not restart with
   }
 })
 
-test('allocation names derive from the Project id alone and refuse anything else', () => {
-  assert.deepEqual(previewAllocation('0f5e1c2a-3b4d-4e5f-8a9b-0c1d2e3f4a5b'), {
-    projectId: '0f5e1c2a-3b4d-4e5f-8a9b-0c1d2e3f4a5b',
+test('Preview coordinates derive from the typed Project and explicit domain', () => {
+  assert.deepEqual(allocate({ projectId: '0f5e1c2a-3b4d-4e5f-8a9b-0c1d2e3f4a5b', kind: 'PREVIEW' }), {
+    kind: 'PREVIEW', projectId: '0f5e1c2a-3b4d-4e5f-8a9b-0c1d2e3f4a5b',
     schema: 'p_0f5e1c2a3b4d4e5f8a9b0c1d2e3f4a5b_preview',
     runtimeRole: 'app_0f5e1c2a3b4d4e5f8a9b0c1d2e3f4a5b_preview_rt',
     migrationRole: 'app_0f5e1c2a3b4d4e5f8a9b0c1d2e3f4a5b_preview_mig',
   })
-  for (const refused of ['', 'x', '0F5E1C2A-3B4D-4E5F-8A9B-0C1D2E3F4A5B', "0f5e1c2a-3b4d-4e5f-8a9b-0c1d2e3f4a5b'; drop"]) {
-    assert.throws(() => previewAllocation(refused), { message: 'the Project id is not a UUID' })
+})
+
+test('the same Project has separate Preview and Published data, roles and ledgers through failure, reset and replay', async (t) => {
+  const { database, provisioner, projects } = await setup(t)
+  await t.test('native roles, atomic batch and Preview reset preserve Published', async (st) => {
+  const preview = projects[0]
+  const published = allocate({ projectId: preview.projectId, kind: 'PUBLISHED' })
+  projects.push(published)
+  await ensureAllocation(provisioner, { allocation: published, database })
+  const previewMigration = migration('001_value.sql', 'CREATE TABLE value (n integer); INSERT INTO value VALUES (17)')
+  const publishedMigration = migration('001_value.sql', 'CREATE TABLE value (n integer); INSERT INTO value VALUES (23)')
+  for (const [allocation, source] of [[preview, previewMigration], [published, publishedMigration]]) {
+    const migrator = await loginAs(st, allocation.migrationRole, database)
+    assert.deepEqual(await applyPendingMigrations(migrator, allocation.schema, planMigrations([], [source]).pending), { ok: true, result: undefined })
+    const runtime = await loginAs(st, allocation.runtimeRole, database)
+    assert.deepEqual((await runtime.query('SELECT n FROM value')).rows, [{ n: allocation.kind === 'PREVIEW' ? 17 : 23 }])
+    const other = allocation.kind === 'PREVIEW' ? published : preview
+    assert.equal(await attempt(runtime, `SELECT n FROM ${other.schema}.value`), '42501')
+    assert.equal(await attempt(runtime, `INSERT INTO ${other.schema}.value VALUES (99)`), '42501')
+    assert.equal(await attempt(migrator, `CREATE TABLE ${other.schema}.escape (n integer)`), '42501')
+    assert.equal(await attempt(migrator, `SELECT n FROM ${other.schema}.value`), '42501')
   }
+  const before = await readLedger(provisioner, published)
+  const previewMigrator = await loginAs(st, preview.migrationRole, database)
+  const failed = await applyPendingMigrations(previewMigrator, preview.schema, planMigrations(await readLedger(provisioner, preview), [previewMigration,
+    migration('002_first.sql', 'CREATE TABLE rolled_back (n integer)'),
+    migration('003_failure.sql', 'SELECT 1 / 0'),
+  ]).pending)
+  assert.deepEqual([failed.ok, failed.error.code, failed.error.migration], [false, 'APPLICATION_MIGRATION_FAILED', '003_failure.sql'])
+  assert.equal((await provisioner.query('SELECT to_regclass($1) AS name', [`${preview.schema}.rolled_back`])).rows[0].name, null)
+  assert.deepEqual(await readLedger(provisioner, preview), [{ position: 1, name: '001_value.sql', sha256: previewMigration.sha256 }])
+  await resetPreviewSchema(provisioner, preview)
+  await ensureAllocation(provisioner, { allocation: preview, database })
+  assert.deepEqual(await applyPendingMigrations(previewMigrator, preview.schema, planMigrations([], [previewMigration]).pending), { ok: true, result: undefined })
+  assert.deepEqual(await applyPendingMigrations(previewMigrator, preview.schema, planMigrations(await readLedger(provisioner, preview), [previewMigration]).pending), { ok: true, result: undefined })
+  await disposePreviewAllocation(provisioner, preview)
+  const publishedRuntime = await loginAs(st, published.runtimeRole, database)
+  assert.deepEqual((await publishedRuntime.query('SELECT n FROM value')).rows, [{ n: 23 }])
+  assert.deepEqual(await readLedger(provisioner, published), before)
+  })
 })

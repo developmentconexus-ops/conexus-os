@@ -2,19 +2,14 @@ import { z } from 'zod'
 import { ApplicationFilePath, ArtifactDigest, ArtifactRevisionId, MediaType, Sha256, SourceRevision, type ProjectId } from '@conexus/contract'
 import { CURRENT_TEMPLATE_PIN } from './application-template-pins.js'
 import { Failure } from '../platform/failure.js'
-import { sql, type Sql, type TxQueries } from '../platform/db.js'
-import type { Admitted, ApplicationScope, Checked, ProjectScope } from '../identity-access/public.js'
+import { sql, type Sql } from '../platform/db.js'
+import type { Admitted, Checked, ProjectScope } from '../identity-access/public.js'
 
 export type ApplicationFile = Readonly<{ path: ApplicationFilePath; mediaType: MediaType; sha256: Sha256; bytes: Uint8Array }>
 export type ServedManifest = Readonly<{ artifactRevisionId: ArtifactRevisionId; files: ReadonlyArray<Readonly<{ path: ApplicationFilePath; mediaType: MediaType }>> }>
 export type ServedLaunch = Readonly<{ sourceRevision: SourceRevision; artifactRevisionId: ArtifactRevisionId; digest: ArtifactDigest; entryPath: 'index.html'; files: ServedManifest['files'] }>
 export type PreviewManifest = Readonly<{ sourceRevision: SourceRevision; entryPath: 'index.html'; files: ServedManifest['files'] }>
 export type ServedThumbnail = Readonly<{ artifactRevisionId: ArtifactRevisionId; bytes: Uint8Array }>
-export type ServedFile =
-  | Readonly<{ ok: true; artifactRevisionId: ArtifactRevisionId; file: ApplicationFile }>
-  | Readonly<{ ok: false; reason: 'NOT_FOUND'; artifactRevisionId: ArtifactRevisionId }>
-  | Readonly<{ ok: false; reason: 'NOT_SERVED' }>
-
 const ManifestFiles = z.array(z.object({ path: ApplicationFilePath, mediaType: MediaType }))
 const FileColumns = { path: ApplicationFilePath, media_type: MediaType, sha256: Sha256, bytes: z.instanceof(Uint8Array) }
 
@@ -55,46 +50,8 @@ export function pointerRow<S extends z.ZodRawShape>(served: S) {
 const FILES_OF_REVISION = sql`(SELECT jsonb_agg(jsonb_build_object('path', value->>'path', 'mediaType', value->>'mediaType')
   ORDER BY value->>'path' COLLATE "C") FROM jsonb_array_elements(revision.payload->'files') AS files_list(value))`
 
-function fileOf(path: ApplicationFilePath): Readonly<{ columns: Sql; joins: Sql; absent: Sql }> {
-  return {
-  columns: sql`file->>'path' AS path, file->>'mediaType' AS media_type, file->>'sha256' AS sha256, decode(file->>'base64', 'base64') AS bytes`,
-  joins: sql`LEFT JOIN LATERAL jsonb_path_query_first(revision.payload, '$.files[*] ? (@.path == $path)', jsonb_build_object('path', ${path}::text)) AS file ON true`,
-    absent: sql`file IS NULL`,
-  }
-}
-
 function brokenPointer(): Failure {
   return new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'SERVED_POINTER_BROKEN' } })
-}
-
-export async function readManifest(proof: Checked<ApplicationScope>): Promise<ServedManifest | null> {
-  const { tx, scope } = proof
-  const projectId = scope.projectId
-  const row = await tx.maybe(pointerRow({ files: ManifestFiles }), pointerStatement(projectId, { columns: sql`${FILES_OF_REVISION} AS files`, joins: sql``, absent: sql`FALSE` }))
-  if (row === null || row.state === 'NONE') return null
-  if (row.state !== 'SERVED') throw brokenPointer()
-  return { artifactRevisionId: row.revision_id, files: row.files }
-}
-
-type FileRead =
-  | Readonly<{ kind: 'NONE' }>
-  | Readonly<{ kind: 'MISSING'; artifactRevisionId: ArtifactRevisionId }>
-  | Readonly<{ kind: 'FILE'; artifactRevisionId: ArtifactRevisionId; file: ApplicationFile }>
-
-async function readFile(tx: TxQueries, projectId: ProjectId, path: ApplicationFilePath): Promise<FileRead> {
-  const row = await tx.maybe(pointerRow(FileColumns), pointerStatement(projectId, fileOf(path)))
-  if (row === null || row.state === 'NONE') return { kind: 'NONE' }
-  if (row.state === 'BROKEN') throw brokenPointer()
-  if (row.state === 'MISSING') return { kind: 'MISSING', artifactRevisionId: row.revision_id }
-  return { kind: 'FILE', artifactRevisionId: row.revision_id, file: { path: row.path, mediaType: row.media_type, sha256: row.sha256, bytes: row.bytes } }
-}
-
-export async function readServedFileOf(proof: Checked<ApplicationScope>, path: ApplicationFilePath): Promise<ServedFile> {
-  const { tx, scope } = proof
-  const projectId = scope.projectId
-  const read = await readFile(tx, projectId, path)
-  if (read.kind === 'NONE') return { ok: false, reason: 'NOT_SERVED' }
-  return read.kind === 'MISSING' ? { ok: false, reason: 'NOT_FOUND', artifactRevisionId: read.artifactRevisionId } : { ok: true, artifactRevisionId: read.artifactRevisionId, file: read.file }
 }
 
 const LaunchColumns = {

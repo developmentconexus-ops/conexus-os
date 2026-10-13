@@ -355,7 +355,6 @@ export const LOG_CODES: ReadonlySet<string> = new Set([
   "NOT_GRANTED",
   "NOT_NAVIGATE",
   "NOT_READY",
-  "NOT_SERVED",
   "NO_HOST",
   "NUL_BYTE",
   "OIDC_BEGIN_FAILED",

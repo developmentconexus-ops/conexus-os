@@ -83,9 +83,9 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
     // Every deletion port reaches a module composed below through the same request-time indirection
     // as repository.prepare above, since the Project module is composed before the Builder module is.
     deletion: {
-      releaseApplicationData: async (projectId) => {
+      disposePreviewData: async (projectId) => {
         if (!applicationRunner) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'APPLICATION_RUNNER_NOT_CONFIGURED' } })
-        return applicationRunner.release({ projectId })
+        return applicationRunner.disposePreview({ projectId })
       },
       killSandboxes: async (projectId) => {
         if (!builder) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'CONEXUS_GIT_NOT_CONFIGURED' } })
@@ -153,9 +153,9 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
     ...(applicationRunner ? {
       applicationServer: {
         invoke: applicationRunner.invoke,
-        prepare: (input) => {
+        preparePreview: (input) => {
           const prepared = preparing.catch(() => undefined).then(() => identityAccess.withApplicationPresence(input.projectId,
-            (presence) => applicationRunner.prepare(presence.hasApplication ? { ...input, onDivergence: 'REFUSE' } : { ...input, onDivergence: 'RESET', signal: presence.lockLost })))
+            (presence) => applicationRunner.preparePreview(presence.hasApplication ? { ...input, onDivergence: 'REFUSE' } : { ...input, onDivergence: 'RESET', signal: presence.lockLost })))
           preparing = prepared
           return prepared
         },

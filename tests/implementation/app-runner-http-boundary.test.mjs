@@ -12,7 +12,7 @@ const { createHttpApp } = await import(hubModuleUrl('http/app.js'))
 const { routes } = await import(hubModuleUrl('http/access.js'))
 
 const projectId = '11111111-1111-4111-8111-111111111111'
-const input = { projectId, operation: 'listNotes', input: {}, files: [{ path: 'conexus-server/manifest.json', sha256: 'a'.repeat(64), content: 'e30=' }], caller: { accountId: '22222222-2222-4222-8222-222222222222', email: null, displayName: 'Synthetic' } }
+const input = { projectId, kind: 'PREVIEW', operation: 'listNotes', input: {}, files: [{ path: 'conexus-server/manifest.json', sha256: 'a'.repeat(64), content: 'e30=' }], caller: { accountId: '22222222-2222-4222-8222-222222222222', email: null, displayName: 'Synthetic' } }
 const matrix = [
   ['json', 400, 'REQUEST_JSON_INVALID', '{"PRIVATE_MARKER":', 'application/json'],
   ['size', 413, 'REQUEST_BODY_TOO_LARGE', JSON.stringify({ padding: 'x'.repeat(16 * 1024 * 1024) }), 'application/json'],
@@ -38,9 +38,9 @@ function captureRequestLogs(t, instance) {
 function runner(t) {
   const instance = createApplicationRunnerApp({
     supervisor: {
-      prepare: async () => ({ ok: true, result: { reset: false, applied: [] } }),
+      preparePreview: async () => ({ ok: true, result: { reset: false, applied: [] } }),
       invoke: async () => { throw new Error('PRIVATE_NATIVE_CAUSE') },
-      release: async () => {},
+      disposePreview: async () => {},
     },
     log: () => {},
   })

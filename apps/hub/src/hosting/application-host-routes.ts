@@ -1,10 +1,8 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
-import { APPLICATION_NO_ACCESS_TEXT, ApplicationFilePath, ApplicationNoAccessReason } from '@conexus/contract'
-import type { ArtifactRevisionId, MediaType, Sha256 } from '@conexus/contract'
+import { APPLICATION_NO_ACCESS_TEXT, ApplicationNoAccessReason } from '@conexus/contract'
 import { applicationSlugOfHost } from '../identity-access/public.js'
 import type { ApplicationAddress } from '../platform/config.js'
-import type { ApplicationInvoker } from './application-invoker.js'
-import { digest, mintToken, presentedToken } from '../platform/opaque-token.js'
+import { mintToken, presentedToken } from '../platform/opaque-token.js'
 import type { ApplicationSlug } from '../identity-access/public.js'
 import { digest as tokenDigest, type RawToken } from '../platform/db.js'
 import { routes } from '../http/access.js'
@@ -14,11 +12,7 @@ import { FAILURE_TEXT } from '../platform/failure-text.generated.js'
 import type { HostOutcome, HostRequest, ScopedProof } from '../identity-access/public.js'
 import { currentTraceReference, failureResponse, sendFailureResponse } from '../http/problem.js'
 import { classifyAppPath } from './application-path.js'
-import { API_BODY_LIMIT, callerLeft, isJsonBody, OPERATION, page, sendPage } from './host-http.js'
-import { readServerTree, serverFilesOf, serverPathsOf } from './server-tree.js'
-import type { ServerFileRead } from './server-tree.js'
-
-const ENTRY_PATH = 'index.html'
+import { API_BODY_LIMIT, isJsonBody, page, sendPage } from './host-http.js'
 
 // The ports this host needs, generic over the access proof: the hosting owner names no identity-access type.
 export type ApplicationHostSessions<C> = Readonly<{
@@ -27,22 +21,8 @@ export type ApplicationHostSessions<C> = Readonly<{
   signOut(token: RawToken): Promise<void>
 }>
 
-export type ApplicationHostReader<C> = Readonly<{
-  readServedManifest(checked: C): Promise<Readonly<{
-    artifactRevisionId: ArtifactRevisionId
-    files: ReadonlyArray<Readonly<{ path: ApplicationFilePath; mediaType: MediaType }>>
-  }> | null>
-  readServedFile(checked: C, path: ApplicationFilePath): Promise<
-    | Readonly<{ ok: true; artifactRevisionId: ArtifactRevisionId; file: Readonly<{ path: ApplicationFilePath; mediaType: MediaType; sha256: Sha256; bytes: Uint8Array }> }>
-    | Readonly<{ ok: false; reason: 'NOT_FOUND'; artifactRevisionId: ArtifactRevisionId }>
-    | Readonly<{ ok: false; reason: 'NOT_SERVED' }>
-  >
-}>
-
 export type ApplicationHostDependencies<C extends ScopedProof> = Readonly<{
   sessions: ApplicationHostSessions<C>
-  reader: ApplicationHostReader<C>
-  invokeApplication?: ApplicationInvoker
   exactHubOrigin: string
   application: ApplicationAddress
 }>
@@ -107,33 +87,10 @@ const callOperation = <C extends ScopedProof>(host: Host<C>) => async (request: 
   if (!isJsonBody(request)) throw new Failure('CONTENT_TYPE_REFUSED')
   const token = presentedToken(readCookie(request, 'applicationSession'))
   if (!token) throw new Failure('APPLICATION_SIGN_IN_REQUIRED')
-  const operation = OPERATION.test(request.params.operation) ? request.params.operation : null
-  // The server tree is read in the entry that checked access, pinned to the manifest's revision.
-  const outcome = await host.sessions.withApplicationRequest({ slug, token }, async ({ checked, caller }) => {
-    const served = await host.reader.readServedManifest(checked)
-    if (!served || !operation) return { caller, scope: checked.scope, served, tree: null }
-    const tree = await readServerTree(serverPathsOf(served.files), async (path): Promise<ServerFileRead> => {
-      const read = await host.reader.readServedFile(checked, path)
-      // Each statement sees the served pointer as it is now: a revision that moved since the manifest is the next request's.
-      if (!read.ok && read.reason === 'NOT_SERVED') return { kind: 'NOT_READY' }
-      if (read.artifactRevisionId !== served.artifactRevisionId) return { kind: 'NOT_READY' }
-      return read.ok ? { kind: 'FILE', sha256: read.file.sha256, bytes: read.file.bytes } : { kind: 'MISSING' }
-    })
-    return { caller, scope: checked.scope, served, tree }
-  })
+  const outcome = await host.sessions.withApplicationRequest({ slug, token }, async () => undefined)
   if (outcome.kind === 'PROVIDER_UNAVAILABLE') throw new Failure('IDENTITY_PROVIDER_UNAVAILABLE')
   if (outcome.kind === 'SIGN_IN_REQUIRED') throw new Failure('APPLICATION_SIGN_IN_REQUIRED')
-  const { caller, scope, served, tree } = outcome.value
-  if (!served) throw new Failure('APPLICATION_NOT_READY')
-  const files = tree ? serverFilesOf(tree) : []
-  if (!operation || files.length === 0) throw new Failure('OPERATION_NOT_FOUND')
-  if (!host.invokeApplication) throw new Failure('APPLICATION_RUNNER_UNAVAILABLE')
-  // The entry has committed: the invocation holds no database connection.
-  const result = await host.invokeApplication({
-    source: { via: 'APPLICATION', accountId: scope.accountId, projectId: scope.projectId },
-    files, operation, input: request.body, caller, callerLeft: callerLeft(reply),
-  })
-  return sendFailureResponse(reply, result)
+  throw new Failure('APPLICATION_NOT_READY')
 }
 
 const serveFile = <C extends ScopedProof>(host: Host<C>) => async (request: FastifyRequest, reply: FastifyReply, { document }: Readonly<{ document: boolean }>): Promise<unknown> => {
@@ -147,25 +104,10 @@ const serveFile = <C extends ScopedProof>(host: Host<C>) => async (request: Fast
     ? startSignIn(host, request, reply, slug)
     : sendFailureResponse(reply, failureResponse({ code: 'APPLICATION_SIGN_IN_REQUIRED', traceId: currentTraceReference() }))
   if (!token) return signIn()
-  // Both reads of a client route, the file and then the fallback to the app index, run in the one entry.
-  const outcome = await host.sessions.withApplicationRequest({ slug, token }, async ({ checked }) => {
-    const read = async (path: string) => {
-      const parsed = ApplicationFilePath.safeParse(path)
-      return parsed.success ? host.reader.readServedFile(checked, parsed.data) : { ok: false, reason: 'NOT_FOUND' } as const
-    }
-    const requested = classified.kind === 'file' ? classified.path : ENTRY_PATH
-    const file = await read(requested)
-    if (file.ok || file.reason !== 'NOT_FOUND' || classified.kind !== 'file') return { requested, file }
-    if (classifyAppPath(request.method, pathname, () => false).kind !== 'app-shell') return null
-    return { requested: ENTRY_PATH, file: await read(ENTRY_PATH) }
-  })
+  const outcome = await host.sessions.withApplicationRequest({ slug, token }, async () => undefined)
   if (outcome.kind === 'PROVIDER_UNAVAILABLE') return sendPage(reply, 503, UNAVAILABLE)
   if (outcome.kind === 'SIGN_IN_REQUIRED') return signIn()
-  if (!outcome.value) return reply.code(404).send()
-  const { requested, file } = outcome.value
-  if (!file.ok && file.reason === 'NOT_SERVED') return sendPage(reply, 503, NOT_READY)
-  if (!file.ok || file.file.path !== requested || digest(file.file.bytes).toString('hex') !== file.file.sha256) return reply.code(404).send()
-  return reply.type(file.file.mediaType).send(Buffer.from(file.file.bytes))
+  return sendPage(reply, 503, NOT_READY)
 }
 
 export const registerApplicationHostRoutes = async <C extends ScopedProof>(

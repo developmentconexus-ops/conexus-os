@@ -264,7 +264,7 @@ test('a page that did not render still advances the source, and settles the buil
 test("a source-shape refusal from the application server settles with the runner's own code, as a build failure the agent can read", async () => {
   const { calls, outcome } = await settle({
     applicationBuild: { kind: 'BUILT', compiledApplication: withServerTree() }, registry: retained,
-    applicationServer: { prepare: async () => { throw new Failure('SERVER_TREE_REFUSED', { cause: 'SERVER_TREE_REFUSED' }) } },
+    applicationServer: { preparePreview: async () => { throw new Failure('SERVER_TREE_REFUSED', { cause: 'SERVER_TREE_REFUSED' }) } },
   })
   assert.equal(outcome, 'SERVER_TREE_REFUSED')
   assert.deepEqual(calls, [
@@ -276,7 +276,7 @@ test("a source-shape refusal from the application server settles with the runner
 test('a platform-side prepare fault settles as a platform failure, not a build failure, and still carries its reason', async () => {
   const { calls } = await settle({
     applicationBuild: { kind: 'BUILT', compiledApplication: withServerTree() }, registry: retained,
-    applicationServer: { prepare: async () => { throw new Failure('APPLICATION_SERVER_REFUSED', { cause: 'connect ECONNREFUSED 127.0.0.1:5432' }) } },
+    applicationServer: { preparePreview: async () => { throw new Failure('APPLICATION_SERVER_REFUSED', { cause: 'connect ECONNREFUSED 127.0.0.1:5432' }) } },
   })
   assert.deepEqual(calls, [
     ['advance', admitted], ['phase', 'FINALIZING'], ['build-settle', 'APPLICATION_SERVER_REFUSED', null],
@@ -289,7 +289,7 @@ test('a build the registry refuses to seal never reaches the runner, and the run
   const { calls, outcome } = await settle({
     applicationBuild: { kind: 'BUILT', compiledApplication: withServerTree() },
     registry: { seal: () => { throw new Failure('APPLICATION_ARTIFACT_INPUT_REFUSED') } },
-    applicationServer: { prepare: async () => { prepared += 1; return { ok: true, result: { reset: false, applied: [] } } } },
+    applicationServer: { preparePreview: async () => { prepared += 1; return { ok: true, result: { reset: false, applied: [] } } } },
   })
   assert.equal(outcome, 'APPLICATION_ARTIFACT_INPUT_REFUSED')
   assert.equal(prepared, 0)
